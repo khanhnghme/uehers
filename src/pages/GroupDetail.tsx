@@ -349,7 +349,7 @@ export default function GroupDetail() {
 
   return (
     <DashboardLayout projectId={group.id} projectName={group.name} zaloLink={group.zalo_link}>
-      <div className="space-y-0 -mx-6 -mt-6">
+      <div className="space-y-0 -mx-6 md:-mx-8 -mt-6">
         {/* Project Navigation Bar - immediately below main nav */}
         <ProjectNavigation
           activeTab={activeTab}
@@ -374,7 +374,7 @@ export default function GroupDetail() {
           </div>
 
           {/* Contextual Action Buttons */}
-          <div className="px-4 md:px-6 pt-4">
+          <div className="px-4 md:px-6 pt-3">
             {/* Contextual Action Buttons for Leader */}
             {isLeaderInGroup && (
               <div className="flex gap-2">
