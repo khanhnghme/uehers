@@ -46,7 +46,7 @@ export default function ProjectNavigation({
   );
 
   return (
-    <div className="w-full border-b border-border/30 sticky top-16 z-40 bg-background/95 backdrop-blur-sm">
+    <div className="w-full border-b border-border/40 sticky top-16 z-40 bg-gradient-to-b from-muted/80 to-background backdrop-blur-sm shadow-sm">
       <div className="max-w-[1600px] mx-auto px-4 md:px-8">
         {/* Navigation tabs - use same layout structure as header */}
         <nav className="flex items-center py-2.5">
@@ -55,7 +55,7 @@ export default function ProjectNavigation({
           
           {/* Center: tabs */}
           <div className="flex-1 flex items-center justify-center overflow-x-auto scrollbar-hide">
-            <div className="inline-flex items-center bg-muted/50 rounded-full px-2 py-1.5">
+            <div className="inline-flex items-center bg-background/80 border border-border/50 rounded-full px-2 py-1.5 shadow-sm">
               <TooltipProvider delayDuration={300}>
                 {/* Main tabs group */}
                 <div className="flex items-center gap-1">
@@ -115,15 +115,15 @@ function NavTabButton({ tab, isActive, onClick, membersCount, isSettings }: NavT
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             "whitespace-nowrap",
             isActive 
-              ? "bg-background shadow-md text-foreground" 
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50",
+              ? "bg-primary text-primary-foreground shadow-md" 
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
             isSettings && !isActive && "text-muted-foreground/70"
           )}
         >
           <Icon className={cn(
             "w-4 h-4 shrink-0",
-            isActive && "text-primary",
-            isSettings && isActive && "text-amber-500"
+            isActive && "text-primary-foreground",
+            isSettings && isActive && "text-amber-200"
           )} />
           
           {/* Label - hide on very small screens, show icon only */}
@@ -134,7 +134,7 @@ function NavTabButton({ tab, isActive, onClick, membersCount, isSettings }: NavT
             <span className={cn(
               "px-2 py-0.5 text-xs font-semibold rounded-full",
               isActive 
-                ? "bg-primary/15 text-primary" 
+                ? "bg-primary-foreground/20 text-primary-foreground" 
                 : "bg-muted-foreground/20 text-muted-foreground"
             )}>
               {membersCount}
