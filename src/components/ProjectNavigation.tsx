@@ -46,19 +46,19 @@ export default function ProjectNavigation({
   );
 
   return (
-    <div className="w-full border-b border-border/40 sticky top-14 z-40 bg-background/95 backdrop-blur-sm">
-      <div className="max-w-[1600px] mx-auto px-4">
+    <div className="w-full border-b border-border/40 sticky top-16 z-40 bg-background/95 backdrop-blur-sm">
+      <div className="max-w-[1600px] mx-auto px-6">
         {/* Navigation tabs - use same layout structure as header */}
-        <nav className="flex items-center py-1">
+        <nav className="flex items-center py-2">
           {/* Left spacer - matches header logo width */}
-          <div className="w-[140px] shrink-0 hidden md:block" />
+          <div className="w-[160px] shrink-0 hidden md:block" />
           
           {/* Center: tabs */}
           <div className="flex-1 flex items-center justify-center overflow-x-auto scrollbar-hide">
-            <div className="inline-flex items-center bg-muted/50 rounded-lg p-0.5">
+            <div className="inline-flex items-center bg-muted/50 rounded-lg p-1">
               <TooltipProvider delayDuration={300}>
                 {/* Main tabs group */}
-                <div className="flex items-center gap-0.5">
+                <div className="flex items-center gap-1">
                   {visibleTabs.filter(t => t.id !== 'settings').map((tab) => (
                     <NavTabButton
                       key={tab.id}
@@ -73,7 +73,7 @@ export default function ProjectNavigation({
                 {/* Settings tab - separated with divider for leaders */}
                 {showSettings && (
                   <>
-                    <div className="w-px h-5 bg-border/50 mx-1" />
+                    <div className="w-px h-6 bg-border/50 mx-1.5" />
                     <NavTabButton
                       tab={tabs.find(t => t.id === 'settings')!}
                       isActive={activeTab === 'settings'}
@@ -87,7 +87,7 @@ export default function ProjectNavigation({
           </div>
           
           {/* Right spacer - matches header user area width */}
-          <div className="w-[140px] shrink-0 hidden md:block" />
+          <div className="w-[160px] shrink-0 hidden md:block" />
         </nav>
       </div>
     </div>
@@ -111,7 +111,7 @@ function NavTabButton({ tab, isActive, onClick, membersCount, isSettings }: NavT
         <button
           onClick={onClick}
           className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150",
+            "flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all duration-150",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             "whitespace-nowrap",
             isActive 
@@ -121,7 +121,7 @@ function NavTabButton({ tab, isActive, onClick, membersCount, isSettings }: NavT
           )}
         >
           <Icon className={cn(
-            "w-3.5 h-3.5 shrink-0",
+            "w-4 h-4 shrink-0",
             isActive && "text-primary",
             isSettings && isActive && "text-amber-500"
           )} />
@@ -132,7 +132,7 @@ function NavTabButton({ tab, isActive, onClick, membersCount, isSettings }: NavT
           {/* Member count badge */}
           {membersCount !== undefined && (
             <span className={cn(
-              "px-1 py-px text-[10px] font-medium rounded",
+              "px-1.5 py-0.5 text-xs font-medium rounded",
               isActive 
                 ? "bg-primary/15 text-primary" 
                 : "bg-muted-foreground/20 text-muted-foreground"
@@ -142,9 +142,9 @@ function NavTabButton({ tab, isActive, onClick, membersCount, isSettings }: NavT
           )}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={6}>
-        <p className="font-medium text-xs">{tab.label}</p>
-        <p className="text-[10px] text-muted-foreground">{tab.description}</p>
+      <TooltipContent side="bottom" sideOffset={8}>
+        <p className="font-medium text-sm">{tab.label}</p>
+        <p className="text-xs text-muted-foreground">{tab.description}</p>
       </TooltipContent>
     </Tooltip>
   );
