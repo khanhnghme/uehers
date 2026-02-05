@@ -46,19 +46,19 @@ export default function ProjectNavigation({
   );
 
   return (
-    <div className="w-full border-b border-border/40 sticky top-16 z-40 bg-background/95 backdrop-blur-sm">
-      <div className="max-w-[1600px] mx-auto px-6">
+    <div className="w-full border-b border-border/30 sticky top-16 z-40 bg-background/95 backdrop-blur-sm shadow-sm">
+      <div className="max-w-[1600px] mx-auto px-6 md:px-8">
         {/* Navigation tabs - use same layout structure as header */}
-        <nav className="flex items-center py-2">
+        <nav className="flex items-center py-1.5">
           {/* Left spacer - matches header logo width */}
           <div className="w-[160px] shrink-0 hidden md:block" />
           
           {/* Center: tabs */}
           <div className="flex-1 flex items-center justify-center overflow-x-auto scrollbar-hide">
-            <div className="inline-flex items-center bg-muted/50 rounded-lg p-1">
+            <div className="inline-flex items-center bg-muted/40 rounded-full px-1.5 py-1">
               <TooltipProvider delayDuration={300}>
                 {/* Main tabs group */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
                   {visibleTabs.filter(t => t.id !== 'settings').map((tab) => (
                     <NavTabButton
                       key={tab.id}
@@ -73,7 +73,7 @@ export default function ProjectNavigation({
                 {/* Settings tab - separated with divider for leaders */}
                 {showSettings && (
                   <>
-                    <div className="w-px h-6 bg-border/50 mx-1.5" />
+                    <div className="w-px h-5 bg-border/40 mx-1" />
                     <NavTabButton
                       tab={tabs.find(t => t.id === 'settings')!}
                       isActive={activeTab === 'settings'}
@@ -111,17 +111,17 @@ function NavTabButton({ tab, isActive, onClick, membersCount, isSettings }: NavT
         <button
           onClick={onClick}
           className={cn(
-            "flex items-center gap-2 px-3.5 py-2 rounded-md text-sm font-medium transition-all duration-150",
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             "whitespace-nowrap",
             isActive 
-              ? "bg-background shadow-sm text-foreground" 
+              ? "bg-background shadow-sm text-foreground border border-border/50" 
               : "text-muted-foreground hover:text-foreground hover:bg-background/50",
             isSettings && !isActive && "text-muted-foreground/70"
           )}
         >
           <Icon className={cn(
-            "w-4 h-4 shrink-0",
+            "w-3.5 h-3.5 shrink-0",
             isActive && "text-primary",
             isSettings && isActive && "text-amber-500"
           )} />
@@ -132,7 +132,7 @@ function NavTabButton({ tab, isActive, onClick, membersCount, isSettings }: NavT
           {/* Member count badge */}
           {membersCount !== undefined && (
             <span className={cn(
-              "px-1.5 py-0.5 text-xs font-medium rounded",
+              "px-1.5 py-0.5 text-[11px] font-medium rounded-full",
               isActive 
                 ? "bg-primary/15 text-primary" 
                 : "bg-muted-foreground/20 text-muted-foreground"
