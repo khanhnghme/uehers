@@ -101,19 +101,19 @@ export default function DashboardLayout({ children, projectId, projectName, zalo
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Fixed Top Navigation Bar */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-primary shadow-lg">
-        <div className="h-full max-w-[1600px] mx-auto px-4 flex items-center">
+      <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-primary shadow-lg">
+        <div className="h-full max-w-[1600px] mx-auto px-6 flex items-center">
           {/* Left: Logo & Brand - fixed width */}
-          <div className="w-[140px] shrink-0">
+          <div className="w-[160px] shrink-0">
             <Link to="/dashboard" className="flex items-center gap-2 group">
-              <img src={uehLogo} alt="UEH Logo" className="h-8 w-auto drop-shadow-md group-hover:scale-105 transition-transform" />
-              <span className="font-bold text-sm text-primary-foreground hidden sm:block">Teamworks</span>
+              <img src={uehLogo} alt="UEH Logo" className="h-9 w-auto drop-shadow-md group-hover:scale-105 transition-transform" />
+              <span className="font-bold text-base text-primary-foreground hidden sm:block">Teamworks</span>
             </Link>
           </div>
 
           {/* Center: Navigation Menu - flex-1 to fill space and center content */}
           <nav className="flex-1 hidden md:flex items-center justify-center">
-            <div className="inline-flex items-center bg-white/10 rounded-full px-1 py-0.5">
+            <div className="inline-flex items-center bg-white/10 rounded-full px-1.5 py-1">
               <TooltipProvider delayDuration={300}>
                 {navigation
                   .filter(item => !item.requiresAdmin || isAdmin)
@@ -125,13 +125,13 @@ export default function DashboardLayout({ children, projectId, projectName, zalo
                         <TooltipTrigger asChild>
                           <Link
                             to={item.href}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
                               isActive 
                                 ? 'bg-white text-primary shadow-sm' 
                                 : 'text-white/80 hover:bg-white/15 hover:text-white'
                             }`}
                           >
-                            <item.icon className="w-3.5 h-3.5" />
+                            <item.icon className="w-4 h-4" />
                             <span className="hidden lg:block">{item.name}</span>
                           </Link>
                         </TooltipTrigger>
@@ -147,14 +147,14 @@ export default function DashboardLayout({ children, projectId, projectName, zalo
           </nav>
 
           {/* Right: User area - fixed width to balance with left */}
-          <div className="w-[140px] shrink-0 flex items-center justify-end gap-2">
+          <div className="w-[160px] shrink-0 flex items-center justify-end gap-3">
             <NotificationBell />
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="flex items-center gap-2 h-auto py-1.5 px-2 hover:bg-white/10 text-white"
+                  className="flex items-center gap-2 h-auto py-2 px-3 hover:bg-white/10 text-white"
                 >
                   <UserAvatar 
                     src={profile?.avatar_url} 
@@ -212,8 +212,8 @@ export default function DashboardLayout({ children, projectId, projectName, zalo
 
         {/* Mobile Navigation Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-16 left-0 right-0 bg-primary border-t border-white/10 shadow-lg">
-            <nav className="p-4 space-y-2">
+          <div className="md:hidden absolute top-16 left-0 right-0 bg-primary border-t border-white/10 shadow-lg z-50">
+            <nav className="p-5 space-y-2">
               {navigation
                 .filter(item => !item.requiresAdmin || isAdmin)
                 .map((item) => {
@@ -223,13 +223,13 @@ export default function DashboardLayout({ children, projectId, projectName, zalo
                       key={item.name}
                       to={item.href}
                       onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-xs font-bold tracking-wider transition-all ${
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-lg text-sm font-semibold transition-all ${
                       isActive 
                         ? 'bg-white/20 text-white' 
                         : 'text-white/80 hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <item.icon className="w-5 h-5" />
+                    <item.icon className="w-5 h-5 shrink-0" />
                     <span>{item.name}</span>
                   </Link>
                 );
@@ -240,8 +240,8 @@ export default function DashboardLayout({ children, projectId, projectName, zalo
       </header>
 
       {/* Main Content - with top padding for fixed header */}
-      <main className="flex-1 pt-14">
-        <div className="max-w-[1600px] mx-auto p-6">
+      <main className="flex-1 pt-16">
+        <div className="max-w-[1600px] mx-auto p-6 md:p-8">
           {children}
         </div>
       </main>
