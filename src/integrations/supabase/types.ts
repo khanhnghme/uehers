@@ -625,14 +625,16 @@ export type Database = {
           category: string | null
           created_at: string
           description: string | null
-          file_path: string
+          file_path: string | null
           file_size: number
           file_type: string | null
           folder_id: string | null
           group_id: string
           id: string
+          link_url: string | null
           name: string
-          storage_name: string
+          resource_type: string
+          storage_name: string | null
           updated_at: string
           uploaded_by: string
         }
@@ -640,14 +642,16 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
-          file_path: string
+          file_path?: string | null
           file_size?: number
           file_type?: string | null
           folder_id?: string | null
           group_id: string
           id?: string
+          link_url?: string | null
           name: string
-          storage_name: string
+          resource_type?: string
+          storage_name?: string | null
           updated_at?: string
           uploaded_by: string
         }
@@ -655,14 +659,16 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
-          file_path?: string
+          file_path?: string | null
           file_size?: number
           file_type?: string | null
           folder_id?: string | null
           group_id?: string
           id?: string
+          link_url?: string | null
           name?: string
-          storage_name?: string
+          resource_type?: string
+          storage_name?: string | null
           updated_at?: string
           uploaded_by?: string
         }
