@@ -52,6 +52,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import FilePreviewPopup from '@/components/FilePreviewPopup';
 
 interface ProjectResource {
   id: string;
@@ -186,6 +187,9 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
   // Rename file dialog
   const [renameResource, setRenameResource] = useState<ProjectResource | null>(null);
   const [newFileName, setNewFileName] = useState('');
+  
+  // Preview popup state
+  const [previewResource, setPreviewResource] = useState<ProjectResource | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
 
   useEffect(() => {
@@ -532,8 +536,19 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
 
   const handlePreview = (resource: ProjectResource) => {
     if (resource.resource_type === 'link' && resource.link_url) {
+      // Links always open in new tab
       window.open(resource.link_url, '_blank');
     } else if (resource.file_path) {
+      // Files open in preview popup
+      setPreviewResource(resource);
+    }
+  };
+
+  const handleOpenExternal = (resource: ProjectResource) => {
+    if (resource.resource_type === 'link' && resource.link_url) {
+      window.open(resource.link_url, '_blank');
+    } else if (resource.file_path) {
+      // Keep old behavior - navigate to file preview page
       const params = new URLSearchParams();
       params.set('url', resource.file_path);
       params.set('name', resource.name);
@@ -1293,6 +1308,25 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* File Preview Popup */}
+      <FilePreviewPopup
+        isOpen={!!previewResource && previewResource.resource_type === 'file'}
+        onClose={() => setPreviewResource(null)}
+        fileUrl={previewResource?.file_path || null}
+        fileName={previewResource?.name || ''}
+        fileSize={previewResource?.file_size}
+        onOpenExternal={() => {
+          if (previewResource) {
+            handleOpenExternal(previewResource);
+          }
+        }}
+        onDownload={() => {
+          if (previewResource) {
+            handleDownload(previewResource);
+          }
+        }}
+      />
     </div>
   );
 }
