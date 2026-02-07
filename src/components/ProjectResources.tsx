@@ -1316,16 +1316,7 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
         fileUrl={previewResource?.file_path || null}
         fileName={previewResource?.name || ''}
         fileSize={previewResource?.file_size}
-        onOpenExternal={() => {
-          if (previewResource) {
-            handleOpenExternal(previewResource);
-          }
-        }}
-        onDownload={() => {
-          if (previewResource) {
-            handleDownload(previewResource);
-          }
-        }}
+        source="resource"
       />
     </div>
   );

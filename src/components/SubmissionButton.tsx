@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,6 +16,8 @@ import {
   Presentation, 
   Image as ImageIcon 
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import FilePreviewPopup from '@/components/FilePreviewPopup';
 
 interface SubmissionItem {
   title?: string;
@@ -85,21 +87,19 @@ export default function SubmissionButton({
   taskId,
   groupId
 }: SubmissionButtonProps) {
-  const navigate = useNavigate();
-  
-  if (!submissionLink) {
-    return variant === 'compact' ? (
-      <span className="inline-flex h-7 w-[104px] items-center justify-center text-[10px] text-muted-foreground whitespace-nowrap">—</span>
-    ) : null;
-  }
+  // File preview popup state
+  const [previewFile, setPreviewFile] = useState<{
+    filePath: string;
+    fileName: string;
+    fileSize: number;
+  } | null>(null);
 
   const items = parseSubmissionLinks(submissionLink);
-  
-  if (items.length === 0) {
-    return variant === 'compact' ? (
-      <span className="inline-flex h-7 w-[104px] items-center justify-center text-[10px] text-muted-foreground whitespace-nowrap">—</span>
-    ) : null;
-  }
+
+  const getFilePublicUrl = (filePath: string) => {
+    const { data } = supabase.storage.from('task-submissions').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
 
   const handleOpenItem = (item: SubmissionItem, e?: React.MouseEvent) => {
     if (onStopPropagation && e) {
@@ -107,58 +107,66 @@ export default function SubmissionButton({
     }
     
     if (item.type === 'file' && item.file_path) {
-      // Find file index in items array
-      const fileItems = items.filter(i => i.type === 'file' && i.file_path);
-      const fileIndex = fileItems.findIndex(f => f.file_path === item.file_path);
-      
-      // Use semantic URL if we have groupId (project slug)
-      if (groupId && taskId) {
-        // For now, use legacy URL until task slug is available
-        const params = new URLSearchParams();
-        params.set('path', item.file_path);
-        if (item.file_name) params.set('name', item.file_name);
-        if (item.file_size) params.set('size', item.file_size.toString());
-        params.set('taskId', taskId);
-        params.set('groupId', groupId);
-        navigate(`/file-preview?${params.toString()}`);
-      } else {
-        const params = new URLSearchParams();
-        params.set('path', item.file_path);
-        if (item.file_name) params.set('name', item.file_name);
-        if (item.file_size) params.set('size', item.file_size.toString());
-        if (taskId) params.set('taskId', taskId);
-        navigate(`/file-preview?${params.toString()}`);
-      }
+      // Open in preview popup instead of navigating
+      setPreviewFile({
+        filePath: item.file_path,
+        fileName: item.file_name || 'file',
+        fileSize: item.file_size || 0
+      });
     } else if (item.url) {
       window.open(item.url, '_blank', 'noopener,noreferrer');
     }
   };
+
+  // File Preview Popup component
+  const previewPopup = (
+    <FilePreviewPopup
+      isOpen={!!previewFile}
+      onClose={() => setPreviewFile(null)}
+      fileUrl={previewFile ? getFilePublicUrl(previewFile.filePath) : null}
+      fileName={previewFile?.fileName || ''}
+      fileSize={previewFile?.fileSize}
+      filePath={previewFile?.filePath}
+      taskId={taskId}
+      groupId={groupId}
+      source="submission"
+    />
+  );
+  
+  if (!submissionLink || items.length === 0) {
+    return variant === 'compact' ? (
+      <span className="inline-flex h-7 w-[104px] items-center justify-center text-[10px] text-muted-foreground whitespace-nowrap">—</span>
+    ) : null;
+  }
 
   if (items.length === 1) {
     const item = items[0];
     const isFile = item.type === 'file';
     
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        className={`h-7 text-xs px-2 gap-1 text-primary whitespace-nowrap ${
-          variant === 'compact' ? 'w-[104px] justify-center' : ''
-        }`}
-        onClick={(e) => handleOpenItem(item, e)}
-      >
-        {isFile ? (
-          <>
-            <Eye className="w-3 h-3" />
-            {variant === 'compact' ? 'File' : 'Xem file'}
-          </>
-        ) : (
-          <>
-            <ExternalLink className="w-3 h-3" />
-            {variant === 'compact' ? 'Xem' : 'Xem bài nộp'}
-          </>
-        )}
-      </Button>
+      <>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`h-7 text-xs px-2 gap-1 text-primary whitespace-nowrap ${
+            variant === 'compact' ? 'w-[104px] justify-center' : ''
+          }`}
+          onClick={(e) => handleOpenItem(item, e)}
+        >
+          {isFile ? (
+            <>
+              <Eye className="w-3 h-3" />
+              {variant === 'compact' ? 'File' : 'Xem file'}
+            </>
+          ) : (
+            <>
+              <ExternalLink className="w-3 h-3" />
+              {variant === 'compact' ? 'Xem' : 'Xem bài nộp'}
+            </>
+          )}
+        </Button>
+        {previewPopup}
+      </>
     );
   }
 
@@ -178,48 +186,51 @@ export default function SubmissionButton({
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={`h-7 text-xs px-2 gap-1 text-primary whitespace-nowrap overflow-hidden ${
-            variant === 'compact' ? 'w-[104px] justify-center' : ''
-          }`}
-          onClick={(e) => onStopPropagation && e.stopPropagation()}
-        >
-          <ExternalLink className="w-3 h-3 shrink-0" />
-          <span className={variant === 'compact' ? 'truncate max-w-[56px]' : ''}>
-            {variant === 'compact' ? label : `Xem bài (${items.length})`}
-          </span>
-          <ChevronDown className="w-3 h-3 shrink-0" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="z-50 bg-popover min-w-[200px]">
-        {items.map((item, i) => {
-          const isFile = item.type === 'file';
-          return (
-            <DropdownMenuItem 
-              key={i}
-              onClick={(e) => handleOpenItem(item, e)}
-              className="text-xs cursor-pointer"
-            >
-              {isFile ? (
-                <>
-                  {getFileIcon(item.file_name || 'file')}
-                  <span className="ml-2 truncate">{item.title || item.file_name || 'File'}</span>
-                  <Eye className="w-3 h-3 ml-auto opacity-50" />
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="w-3 h-3 mr-2" />
-                  <span className="truncate">{item.title || `Link ${i + 1}`}</span>
-                </>
-              )}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={`h-7 text-xs px-2 gap-1 text-primary whitespace-nowrap overflow-hidden ${
+              variant === 'compact' ? 'w-[104px] justify-center' : ''
+            }`}
+            onClick={(e) => onStopPropagation && e.stopPropagation()}
+          >
+            <ExternalLink className="w-3 h-3 shrink-0" />
+            <span className={variant === 'compact' ? 'truncate max-w-[56px]' : ''}>
+              {variant === 'compact' ? label : `Xem bài (${items.length})`}
+            </span>
+            <ChevronDown className="w-3 h-3 shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="z-50 bg-popover min-w-[200px]">
+          {items.map((item, i) => {
+            const isFile = item.type === 'file';
+            return (
+              <DropdownMenuItem 
+                key={i}
+                onClick={(e) => handleOpenItem(item, e)}
+                className="text-xs cursor-pointer"
+              >
+                {isFile ? (
+                  <>
+                    {getFileIcon(item.file_name || 'file')}
+                    <span className="ml-2 truncate">{item.title || item.file_name || 'File'}</span>
+                    <Eye className="w-3 h-3 ml-auto opacity-50" />
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink className="w-3 h-3 mr-2" />
+                    <span className="truncate">{item.title || `Link ${i + 1}`}</span>
+                  </>
+                )}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {previewPopup}
+    </>
   );
 }
