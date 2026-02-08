@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -29,7 +30,6 @@ import {
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { parseLocalDateTime } from '@/lib/datetime';
-import FilePreviewPopup from '@/components/FilePreviewPopup';
 
 interface SubmissionHistoryEntry {
   id: string;
@@ -92,17 +92,11 @@ export default function SubmissionHistoryPopup({
   taskDeadline,
   currentSubmissionLink 
 }: SubmissionHistoryPopupProps) {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<SubmissionHistoryEntry[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  
-  // File preview popup state
-  const [previewFile, setPreviewFile] = useState<{
-    filePath: string;
-    fileName: string;
-    fileSize: number;
-  } | null>(null);
 
   const taskDeadlineDate = parseLocalDateTime(taskDeadline);
 
@@ -157,12 +151,14 @@ export default function SubmissionHistoryPopup({
   };
 
   const handleViewFile = (filePath: string, fileName: string, fileSize: number) => {
-    setPreviewFile({ filePath, fileName, fileSize });
-  };
-
-  const getFilePublicUrl = (filePath: string) => {
-    const { data } = supabase.storage.from('task-submissions').getPublicUrl(filePath);
-    return data.publicUrl;
+    const params = new URLSearchParams();
+    params.set('path', filePath);
+    params.set('name', fileName);
+    params.set('size', fileSize.toString());
+    params.set('taskId', taskId);
+    if (groupId) params.set('groupId', groupId);
+    navigate(`/file-preview?${params.toString()}`);
+    setIsOpen(false);
   };
 
   // Pagination
@@ -428,19 +424,6 @@ export default function SubmissionHistoryPopup({
           )}
         </div>
       </DialogContent>
-
-      {/* File Preview Popup */}
-      <FilePreviewPopup
-        isOpen={!!previewFile}
-        onClose={() => setPreviewFile(null)}
-        fileUrl={previewFile ? getFilePublicUrl(previewFile.filePath) : null}
-        fileName={previewFile?.fileName || ''}
-        fileSize={previewFile?.fileSize}
-        filePath={previewFile?.filePath}
-        taskId={taskId}
-        groupId={groupId}
-        source="submission"
-      />
     </Dialog>
   );
 }

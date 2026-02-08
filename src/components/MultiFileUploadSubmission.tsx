@@ -18,7 +18,7 @@ import {
   Pencil,
   Check
 } from 'lucide-react';
-import FilePreviewPopup from '@/components/FilePreviewPopup';
+import { useNavigate } from 'react-router-dom';
 
 export interface UploadedFile {
   file_path: string;
@@ -107,6 +107,7 @@ export default function MultiFileUploadSubmission({
   maxTotalSize = DEFAULT_MAX_SIZE
 }: MultiFileUploadSubmissionProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -114,13 +115,6 @@ export default function MultiFileUploadSubmission({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
   const [reassuringMessage, setReassuringMessage] = useState('');
-  
-  // File preview popup state
-  const [previewFile, setPreviewFile] = useState<{
-    filePath: string;
-    fileName: string;
-    fileSize: number;
-  } | null>(null);
   
   // Virtual progress state
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -353,16 +347,12 @@ export default function MultiFileUploadSubmission({
   };
 
   const handlePreviewFile = (file: UploadedFile) => {
-    setPreviewFile({
-      filePath: file.file_path,
-      fileName: file.file_name,
-      fileSize: file.file_size
-    });
-  };
-
-  const getFilePublicUrl = (filePath: string) => {
-    const { data } = supabase.storage.from('task-submissions').getPublicUrl(filePath);
-    return data.publicUrl;
+    const params = new URLSearchParams();
+    params.set('path', file.file_path);
+    params.set('name', file.file_name);
+    params.set('size', file.file_size.toString());
+    params.set('taskId', taskId);
+    navigate(`/file-preview?${params.toString()}`);
   };
 
   const startEditing = (index: number, currentName: string) => {
@@ -529,18 +519,6 @@ export default function MultiFileUploadSubmission({
           ))}
         </div>
       )}
-
-      {/* File Preview Popup */}
-      <FilePreviewPopup
-        isOpen={!!previewFile}
-        onClose={() => setPreviewFile(null)}
-        fileUrl={previewFile ? getFilePublicUrl(previewFile.filePath) : null}
-        fileName={previewFile?.fileName || ''}
-        fileSize={previewFile?.fileSize}
-        filePath={previewFile?.filePath}
-        taskId={taskId}
-        source="submission"
-      />
     </div>
   );
 }
