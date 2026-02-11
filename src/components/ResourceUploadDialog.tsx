@@ -382,9 +382,9 @@ export default function ResourceUploadDialog({
               </TabsTrigger>
             </TabsList>
 
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden flex flex-col">
               {/* === FILE TAB === */}
-              <TabsContent value="file" className="h-full mt-0 flex flex-col overflow-hidden">
+              <TabsContent value="file" className="flex-1 mt-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-200/50 mb-3 shrink-0">
                   <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
                   <div className="text-xs text-muted-foreground space-y-1">
@@ -481,7 +481,7 @@ export default function ResourceUploadDialog({
               </TabsContent>
 
               {/* === LINK TAB === */}
-              <TabsContent value="link" className="h-full mt-0 flex flex-col overflow-hidden">
+              <TabsContent value="link" className="flex-1 mt-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-green-500/5 border border-green-200/50 mb-3 shrink-0">
                   <Info className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                   <div className="text-xs text-muted-foreground space-y-1">
@@ -575,7 +575,7 @@ export default function ResourceUploadDialog({
               </TabsContent>
 
               {/* === FOLDER TAB === */}
-              <TabsContent value="folder" className="h-full mt-0 flex flex-col overflow-hidden">
+              <TabsContent value="folder" className="flex-1 mt-0 flex flex-col overflow-hidden data-[state=inactive]:hidden">
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-200/50 mb-3 shrink-0">
                   <Info className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                   <div className="text-xs text-muted-foreground space-y-1">
