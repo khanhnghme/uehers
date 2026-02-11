@@ -135,6 +135,10 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
+  // Single item move dialog
+  const [moveResource, setMoveResource] = useState<ProjectResource | null>(null);
+  const [moveTarget, setMoveTarget] = useState<string | null>(null);
+
   useEffect(() => {
     fetchResources();
     fetchFolders();
@@ -411,6 +415,27 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
     }
   };
 
+  const handleSingleMove = async () => {
+    if (!moveResource) return;
+    setIsBatchProcessing(true);
+    try {
+      await supabase
+        .from('project_resources')
+        .update({ folder_id: moveTarget } as any)
+        .eq('id', moveResource.id);
+      const targetName = moveTarget
+        ? folders.find(f => f.id === moveTarget)?.name || 'thư mục'
+        : 'ngoài thư mục';
+      toast({ title: 'Thành công', description: `Đã di chuyển "${moveResource.name}" vào ${targetName}` });
+      setMoveResource(null);
+      fetchResources();
+    } catch (error: any) {
+      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
   const handlePreview = (resource: ProjectResource) => {
     if (isSelectionMode) return;
     if (resource.resource_type === 'link' && resource.link_url) {
@@ -543,18 +568,48 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
                   </Button>
                 )}
                 {isLeader && (
-                  <>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { 
-                      e.stopPropagation(); 
-                      setNewFileName(isLink ? resource.name : (resource.name.substring(0, resource.name.lastIndexOf('.')) || resource.name));
-                      setRenameResource(resource); 
-                    }} title="Đổi tên">
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteResource(resource); }} title="Xóa">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()} title="Thêm thao tác">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setNewFileName(isLink ? resource.name : (resource.name.substring(0, resource.name.lastIndexOf('.')) || resource.name));
+                        setRenameResource(resource); 
+                      }}>
+                        <Pencil className="w-4 h-4 mr-2" />Đổi tên
+                      </DropdownMenuItem>
+                      {folders.length > 0 && (
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          setMoveTarget(resource.folder_id || null);
+                          setMoveResource(resource);
+                        }}>
+                          <FolderInput className="w-4 h-4 mr-2" />Di chuyển vào thư mục
+                        </DropdownMenuItem>
+                      )}
+                      {resource.folder_id && (
+                        <DropdownMenuItem onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await supabase.from('project_resources').update({ folder_id: null } as any).eq('id', resource.id);
+                            toast({ title: 'Thành công', description: `Đã di chuyển "${resource.name}" ra ngoài thư mục` });
+                            fetchResources();
+                          } catch (err: any) {
+                            toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+                          }
+                        }}>
+                          <FolderOutput className="w-4 h-4 mr-2" />Đưa ra ngoài thư mục
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteResource(resource); }}>
+                        <Trash2 className="w-4 h-4 mr-2" />Xóa
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
             )}
@@ -1002,6 +1057,64 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setBatchMoveDialogOpen(false)} disabled={isBatchProcessing}>Hủy</Button>
             <Button onClick={handleBatchMove} disabled={isBatchProcessing} className="gap-2">
+              {isBatchProcessing ? <><Loader2 className="w-4 h-4 animate-spin" />Đang xử lý...</> : <><FolderInput className="w-4 h-4" />Di chuyển</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single Item Move Dialog */}
+      <Dialog open={!!moveResource} onOpenChange={() => setMoveResource(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderInput className="w-5 h-5 text-primary" />
+              Di chuyển &quot;{moveResource?.name}&quot;
+            </DialogTitle>
+            <DialogDescription>
+              Chọn thư mục đích
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div
+              className={cn(
+                "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                moveTarget === null ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:bg-muted/50"
+              )}
+              onClick={() => setMoveTarget(null)}
+            >
+              <FolderOutput className="w-5 h-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Ngoài thư mục (gốc)</p>
+                <p className="text-xs text-muted-foreground">Di chuyển ra khỏi tất cả thư mục</p>
+              </div>
+            </div>
+            {folders.map(folder => (
+              <div
+                key={folder.id}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                  moveTarget === folder.id ? "ring-2 ring-primary border-primary bg-primary/5" : "hover:bg-muted/50",
+                  moveResource?.folder_id === folder.id && "opacity-50"
+                )}
+                onClick={() => setMoveTarget(folder.id)}
+              >
+                <Folder className="w-5 h-5 text-amber-600" />
+                <div>
+                  <p className="text-sm font-medium">{folder.name}</p>
+                  {folder.description && <p className="text-xs text-muted-foreground">{folder.description}</p>}
+                  {moveResource?.folder_id === folder.id && <p className="text-xs text-primary">Đang ở thư mục này</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setMoveResource(null)} disabled={isBatchProcessing}>Hủy</Button>
+            <Button 
+              onClick={handleSingleMove} 
+              disabled={isBatchProcessing || moveTarget === (moveResource?.folder_id || null)} 
+              className="gap-2"
+            >
               {isBatchProcessing ? <><Loader2 className="w-4 h-4 animate-spin" />Đang xử lý...</> : <><FolderInput className="w-4 h-4" />Di chuyển</>}
             </Button>
           </DialogFooter>
