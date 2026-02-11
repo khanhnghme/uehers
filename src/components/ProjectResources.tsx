@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +42,8 @@ import {
   MoreHorizontal,
   Pencil,
   Link as LinkIcon,
-  ExternalLink
+  ExternalLink,
+  GripVertical
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -68,6 +70,7 @@ interface ProjectResource {
   folder_id: string | null;
   resource_type: string;
   link_url: string | null;
+  display_order: number;
   profiles?: {
     full_name: string;
     avatar_url: string | null;
@@ -214,7 +217,7 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
         .from('project_resources')
         .select('*')
         .eq('group_id', groupId)
-        .order('created_at', { ascending: false });
+        .order('display_order', { ascending: true });
       
       if (error) throw error;
       
@@ -231,6 +234,7 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
           folder_id: (r as any).folder_id || null,
           resource_type: (r as any).resource_type || 'file',
           link_url: (r as any).link_url || null,
+          display_order: (r as any).display_order || 0,
           profiles: profilesMap.get(r.uploaded_by)
         })) as ProjectResource[]);
       } else {
@@ -392,6 +396,82 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (folderFileInputRef.current) folderFileInputRef.current.value = '';
   };
+
+  // Handle resource drag & drop (reorder + move between folders)
+  const handleResourceDragEnd = useCallback(async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    const sourceFolderId = source.droppableId === 'root' ? null : source.droppableId;
+    const destFolderId = destination.droppableId === 'root' ? null : destination.droppableId;
+
+    // Get resources in destination folder
+    const destResources = resources
+      .filter(r => r.folder_id === destFolderId)
+      .sort((a, b) => a.display_order - b.display_order);
+
+    // If moving within same folder, reorder
+    if (sourceFolderId === destFolderId) {
+      const newOrder = [...destResources];
+      const movedIndex = newOrder.findIndex(r => r.id === draggableId);
+      if (movedIndex === -1) return;
+      const [moved] = newOrder.splice(movedIndex, 1);
+      newOrder.splice(destination.index, 0, moved);
+
+      // Optimistic update
+      const updatedResources = resources.map(r => {
+        const idx = newOrder.findIndex(nr => nr.id === r.id);
+        if (idx !== -1) return { ...r, display_order: idx };
+        return r;
+      });
+      setResources(updatedResources);
+
+      // Persist
+      try {
+        for (let i = 0; i < newOrder.length; i++) {
+          await supabase.from('project_resources').update({ display_order: i } as any).eq('id', newOrder[i].id);
+        }
+      } catch (e) {
+        console.error('Error reordering:', e);
+        fetchResources();
+      }
+    } else {
+      // Moving to a different folder
+      const movedResource = resources.find(r => r.id === draggableId);
+      if (!movedResource) return;
+
+      // Optimistic update
+      const updatedResources = resources.map(r => {
+        if (r.id === draggableId) {
+          return { ...r, folder_id: destFolderId, display_order: destination.index };
+        }
+        return r;
+      });
+      setResources(updatedResources);
+
+      // Persist folder change
+      try {
+        await supabase
+          .from('project_resources')
+          .update({ folder_id: destFolderId, display_order: destination.index } as any)
+          .eq('id', draggableId);
+        
+        // Re-order destination folder
+        const newDestResources = updatedResources
+          .filter(r => r.folder_id === destFolderId)
+          .sort((a, b) => a.display_order - b.display_order);
+        for (let i = 0; i < newDestResources.length; i++) {
+          await supabase.from('project_resources').update({ display_order: i } as any).eq('id', newDestResources[i].id);
+        }
+      } catch (e) {
+        console.error('Error moving resource:', e);
+        fetchResources();
+      }
+
+      toast({ title: 'Thành công', description: `Đã di chuyển "${movedResource.name}" ${destFolderId ? 'vào thư mục' : 'ra ngoài'}` });
+    }
+  }, [resources, fetchResources, toast]);
 
   const handleCreateFolder = async () => {
     if (!folderName.trim()) return;
@@ -582,18 +662,23 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
   const getResourcesInFolder = (folderId: string) => 
     filteredResources.filter(r => r.folder_id === folderId);
 
-  const renderResourceItem = (resource: ProjectResource) => {
+  const renderResourceItem = (resource: ProjectResource, dragHandleProps?: any, isDragging?: boolean) => {
     const category = CATEGORIES.find(c => c.value === resource.category);
     const isLink = resource.resource_type === 'link';
     
     return (
       <Card 
         key={resource.id} 
-        className="group hover:shadow-md transition-all hover:border-primary/30 cursor-pointer"
+        className={cn("group hover:shadow-md transition-all hover:border-primary/30 cursor-pointer", isDragging && "shadow-lg ring-2 ring-primary/30")}
         onClick={() => handlePreview(resource)}
       >
         <CardContent className="p-3">
           <div className="flex items-center gap-3">
+            {isLeader && dragHandleProps && (
+              <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded touch-none shrink-0" onClick={(e) => e.stopPropagation()}>
+                <GripVertical className="w-4 h-4 text-muted-foreground" />
+              </div>
+            )}
             <div className={cn(
               "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border",
               isLink 
@@ -831,141 +916,175 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {/* Folders */}
-          {folders.map(folder => {
-            const folderResources = getResourcesInFolder(folder.id);
-            const isExpanded = expandedFolders.has(folder.id);
-            
-            return (
-              <Collapsible key={folder.id} open={isExpanded} onOpenChange={() => toggleFolder(folder.id)}>
-                <Card className="overflow-hidden">
-                  <CollapsibleTrigger asChild>
-                    <div className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-500/10 flex items-center justify-center shrink-0 border border-amber-200">
-                        <Folder className="w-5 h-5 text-amber-600" />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-sm">{folder.name}</h4>
-                          <Badge variant="secondary" className="text-[10px]">
-                            {folderResources.length} file
-                          </Badge>
+        <DragDropContext onDragEnd={handleResourceDragEnd}>
+          <div className="space-y-3">
+            {/* Folders */}
+            {folders.map(folder => {
+              const folderResources = getResourcesInFolder(folder.id).sort((a, b) => a.display_order - b.display_order);
+              const isExpanded = expandedFolders.has(folder.id);
+              
+              return (
+                <Collapsible key={folder.id} open={isExpanded} onOpenChange={() => toggleFolder(folder.id)}>
+                  <Card className="overflow-hidden">
+                    <CollapsibleTrigger asChild>
+                      <div className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-500/10 flex items-center justify-center shrink-0 border border-amber-200">
+                          <Folder className="w-5 h-5 text-amber-600" />
                         </div>
-                        {folder.description && (
-                          <p className="text-xs text-muted-foreground truncate">{folder.description}</p>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center gap-1">
-                        {isLeader && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                setUploadToFolder(folder.id);
-                                folderFileInputRef.current?.click();
-                              }}>
-                                <Upload className="w-4 h-4 mr-2" />
-                                Tải file vào đây
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                setUploadToFolder(folder.id);
-                                setUploadType('link');
-                                setIsUploadOpen(true);
-                              }}>
-                                <LinkIcon className="w-4 h-4 mr-2" />
-                                Thêm link vào đây
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={(e) => {
-                                e.stopPropagation();
-                                openEditFolder(folder);
-                              }}>
-                                <Pencil className="w-4 h-4 mr-2" />
-                                Sửa thư mục
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteFolder(folder);
-                                }}
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Xóa thư mục
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </div>
-                  </CollapsibleTrigger>
-                  
-                  <CollapsibleContent>
-                    <div className="border-t bg-muted/30 p-2 space-y-2">
-                      {folderResources.length === 0 ? (
-                        <div className="text-center py-4 text-sm text-muted-foreground">
-                          Thư mục trống
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-sm">{folder.name}</h4>
+                            <Badge variant="secondary" className="text-[10px]">
+                              {folderResources.length} file
+                            </Badge>
+                          </div>
+                          {folder.description && (
+                            <p className="text-xs text-muted-foreground truncate">{folder.description}</p>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
                           {isLeader && (
-                            <div className="flex justify-center gap-2 mt-2">
-                              <Button 
-                                variant="link" 
-                                size="sm"
-                                onClick={() => {
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation();
                                   setUploadToFolder(folder.id);
                                   folderFileInputRef.current?.click();
-                                }}
-                              >
-                                <Upload className="w-3 h-3 mr-1" />
-                                Tải file
-                              </Button>
-                              <Button 
-                                variant="link" 
-                                size="sm"
-                                onClick={() => {
+                                }}>
+                                  <Upload className="w-4 h-4 mr-2" />
+                                  Tải file vào đây
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation();
                                   setUploadToFolder(folder.id);
                                   setUploadType('link');
                                   setIsUploadOpen(true);
-                                }}
-                              >
-                                <LinkIcon className="w-3 h-3 mr-1" />
-                                Thêm link
-                              </Button>
-                            </div>
+                                }}>
+                                  <LinkIcon className="w-4 h-4 mr-2" />
+                                  Thêm link vào đây
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditFolder(folder);
+                                }}>
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Sửa thư mục
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteFolder(folder);
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Xóa thư mục
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
                           )}
                         </div>
-                      ) : (
-                        folderResources.map(resource => renderResourceItem(resource))
-                      )}
-                    </div>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
-            );
-          })}
+                      </div>
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent>
+                      <Droppable droppableId={folder.id}>
+                        {(provided, snapshot) => (
+                          <div 
+                            ref={provided.innerRef} 
+                            {...provided.droppableProps}
+                            className={cn("border-t bg-muted/30 p-2 space-y-2 min-h-[40px]", snapshot.isDraggingOver && "bg-primary/5 ring-1 ring-primary/20")}
+                          >
+                            {folderResources.length === 0 && !snapshot.isDraggingOver ? (
+                              <div className="text-center py-4 text-sm text-muted-foreground">
+                                Thư mục trống - kéo tài nguyên vào đây
+                                {isLeader && (
+                                  <div className="flex justify-center gap-2 mt-2">
+                                    <Button 
+                                      variant="link" 
+                                      size="sm"
+                                      onClick={() => {
+                                        setUploadToFolder(folder.id);
+                                        folderFileInputRef.current?.click();
+                                      }}
+                                    >
+                                      <Upload className="w-3 h-3 mr-1" />
+                                      Tải file
+                                    </Button>
+                                    <Button 
+                                      variant="link" 
+                                      size="sm"
+                                      onClick={() => {
+                                        setUploadToFolder(folder.id);
+                                        setUploadType('link');
+                                        setIsUploadOpen(true);
+                                      }}
+                                    >
+                                      <LinkIcon className="w-3 h-3 mr-1" />
+                                      Thêm link
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              folderResources.map((resource, index) => (
+                                <Draggable key={resource.id} draggableId={resource.id} index={index} isDragDisabled={!isLeader}>
+                                  {(provided, snapshot) => (
+                                    <div ref={provided.innerRef} {...provided.draggableProps}>
+                                      {renderResourceItem(resource, provided.dragHandleProps, snapshot.isDragging)}
+                                    </div>
+                                  )}
+                                </Draggable>
+                              ))
+                            )}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              );
+            })}
 
-          {/* Root level resources */}
-          {rootResources.length > 0 && (
-            <div className="space-y-2">
-              {folders.length > 0 && (
-                <h3 className="text-sm font-medium text-muted-foreground px-1">File không thuộc thư mục</h3>
+            {/* Root level resources */}
+            <Droppable droppableId="root">
+              {(provided, snapshot) => (
+                <div 
+                  ref={provided.innerRef} 
+                  {...provided.droppableProps}
+                  className={cn("space-y-2 min-h-[20px]", snapshot.isDraggingOver && "bg-primary/5 rounded-lg p-2 ring-1 ring-primary/20")}
+                >
+                  {folders.length > 0 && rootResources.length > 0 && (
+                    <h3 className="text-sm font-medium text-muted-foreground px-1">File không thuộc thư mục</h3>
+                  )}
+                  {rootResources.sort((a, b) => a.display_order - b.display_order).map((resource, index) => (
+                    <Draggable key={resource.id} draggableId={resource.id} index={index} isDragDisabled={!isLeader}>
+                      {(provided, snapshot) => (
+                        <div ref={provided.innerRef} {...provided.draggableProps}>
+                          {renderResourceItem(resource, provided.dragHandleProps, snapshot.isDragging)}
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
               )}
-              {rootResources.map(resource => renderResourceItem(resource))}
-            </div>
-          )}
-        </div>
+            </Droppable>
+          </div>
+        </DragDropContext>
       )}
 
       {/* Upload Dialog */}
@@ -973,7 +1092,7 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
         if (!open) resetUploadForm();
         else setIsUploadOpen(open);
       }}>
-        <DialogContent className="max-w-md w-[95vw]">
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden flex flex-col" style={{ aspectRatio: '16/9' }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {uploadType === 'file' ? (
@@ -990,7 +1109,7 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-1">
             {/* Tabs for file or link */}
             {!uploadFile && (
               <Tabs value={uploadType} onValueChange={(v) => setUploadType(v as 'file' | 'link')}>
