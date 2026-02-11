@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useFilePreview } from '@/contexts/FilePreviewContext';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -86,6 +87,7 @@ export default function SubmissionButton({
   groupId
 }: SubmissionButtonProps) {
   const navigate = useNavigate();
+  const { openFilePreview } = useFilePreview();
   
   if (!submissionLink) {
     return variant === 'compact' ? (
@@ -120,14 +122,14 @@ export default function SubmissionButton({
         if (item.file_size) params.set('size', item.file_size.toString());
         params.set('taskId', taskId);
         params.set('groupId', groupId);
-        navigate(`/file-preview?${params.toString()}`);
+        openFilePreview(`/file-preview?${params.toString()}`);
       } else {
         const params = new URLSearchParams();
         params.set('path', item.file_path);
         if (item.file_name) params.set('name', item.file_name);
         if (item.file_size) params.set('size', item.file_size.toString());
         if (taskId) params.set('taskId', taskId);
-        navigate(`/file-preview?${params.toString()}`);
+        openFilePreview(`/file-preview?${params.toString()}`);
       }
     } else if (item.url) {
       window.open(item.url, '_blank', 'noopener,noreferrer');
