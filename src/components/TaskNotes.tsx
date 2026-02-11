@@ -116,7 +116,7 @@ export default function TaskNotes({ taskId, className = '', compact = false }: T
   } = useAutosave({
     data: content,
     onSave: handleAutosave,
-    delay: 1500,
+    delay: 800,
     enabled: !!selectedNoteId
   });
 
@@ -205,9 +205,60 @@ export default function TaskNotes({ taskId, className = '', compact = false }: T
     }
   }, [notes.length]); // Only depend on notes.length to avoid loops
 
-  // Initial fetch
+  // Initial fetch + realtime subscription
   useEffect(() => {
     fetchNotes();
+
+    // Subscribe to realtime changes on task_notes for this task
+    const channel = supabase
+      .channel(`task-notes-${taskId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'task_notes',
+          filter: `task_id=eq.${taskId}`,
+        },
+        (payload) => {
+          if (!isMountedRef.current) return;
+          
+          if (payload.eventType === 'INSERT') {
+            const newNote = payload.new as TaskNote;
+            setNotes(prev => {
+              // Avoid duplicates
+              if (prev.some(n => n.id === newNote.id)) return prev;
+              return [...prev, newNote];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as TaskNote;
+            setNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
+            // If this is the currently selected note and content changed from another user,
+            // update the editor content (only if we're not the one who made the change)
+            if (updated.id === selectedNoteId && updated.content !== content) {
+              // Only update if the change didn't come from our own autosave
+              // Use a small tolerance: if the content is different from what we have locally
+              setContent(updated.content || '');
+              resetSavedData(updated.content || '');
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id;
+            if (deletedId) {
+              setNotes(prev => prev.filter(n => n.id !== deletedId));
+              if (selectedNoteId === deletedId) {
+                setSelectedNoteId(null);
+                setContent('');
+                resetSavedData('');
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [taskId]); // Only refetch when taskId changes
 
   // Fetch attachments when selectedNoteId changes
@@ -236,13 +287,16 @@ export default function TaskNotes({ taskId, className = '', compact = false }: T
   const createNewVersion = async () => {
     try {
       const versionNumber = notes.length + 1;
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id || null;
+      
       const { data, error } = await supabase
         .from('task_notes')
         .insert([{
           task_id: taskId,
           version_name: `Phiên bản ${versionNumber}`,
           content: '',
-          created_by: (await supabase.auth.getUser()).data.user?.id || ''
+          created_by: userId
         }])
         .select()
         .single();
