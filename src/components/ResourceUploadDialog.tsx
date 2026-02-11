@@ -73,6 +73,7 @@ interface PendingFile {
   status: 'pending' | 'uploading' | 'done' | 'error';
   progress: number;
   error?: string;
+  source: 'file' | 'folder';
 }
 
 interface PendingLink {
@@ -91,6 +92,7 @@ interface ResourceUploadDialogProps {
   folderId: string | null;
   folderName?: string;
   onSuccess: () => void;
+  onClose?: () => void;
 }
 
 export default function ResourceUploadDialog({
@@ -100,6 +102,7 @@ export default function ResourceUploadDialog({
   folderId,
   folderName,
   onSuccess,
+  onClose,
 }: ResourceUploadDialogProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +131,7 @@ export default function ResourceUploadDialog({
         category: globalCategory,
         status: 'pending' as const,
         progress: 0,
+        source: 'file' as const,
       }));
 
     const oversized = files.filter(f => f.size > 50 * 1024 * 1024);
@@ -150,6 +154,7 @@ export default function ResourceUploadDialog({
         category: globalCategory,
         status: 'pending' as const,
         progress: 0,
+        source: 'folder' as const,
       }));
 
     const oversized = files.filter(f => f.size > 50 * 1024 * 1024);
@@ -295,7 +300,7 @@ export default function ResourceUploadDialog({
       }
 
       toast({ title: 'Hoàn tất', description: 'Đã xử lý tất cả tài nguyên' });
-      onSuccess();
+      onSuccess(); // Refresh resource list without closing dialog
     } catch (err: any) {
       toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
     } finally {
@@ -311,13 +316,14 @@ export default function ResourceUploadDialog({
     setGlobalCategory('general');
     setActiveTab('file');
     onOpenChange(false);
+    onClose?.();
   };
 
   const allDone = totalItems > 0 && totalDone === totalItems;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && !isSubmitting) resetAndClose(); }}>
-      <DialogContent className="max-w-[1280px] w-[95vw] max-h-[90vh] overflow-hidden flex flex-col p-0" style={{ aspectRatio: '16/9' }}>
+      <DialogContent className="max-w-[1280px] w-[95vw] h-[720px] max-h-[90vh] overflow-hidden flex flex-col p-0">
         {/* Hidden inputs */}
         <input
           ref={fileInputRef}
@@ -356,8 +362,8 @@ export default function ResourceUploadDialog({
               <TabsTrigger value="file" className="gap-2">
                 <Upload className="w-4 h-4" />
                 Tải file
-                {pendingFiles.filter(f => f.file.webkitRelativePath === '').length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{pendingFiles.filter(f => !f.file.webkitRelativePath).length}</Badge>
+                {pendingFiles.filter(f => f.source === 'file').length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{pendingFiles.filter(f => f.source === 'file').length}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="link" className="gap-2">
@@ -370,6 +376,9 @@ export default function ResourceUploadDialog({
               <TabsTrigger value="folder" className="gap-2">
                 <FolderUp className="w-4 h-4" />
                 Tải thư mục
+                {pendingFiles.filter(f => f.source === 'folder').length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{pendingFiles.filter(f => f.source === 'folder').length}</Badge>
+                )}
               </TabsTrigger>
             </TabsList>
 
@@ -408,10 +417,10 @@ export default function ResourceUploadDialog({
                   <p className="text-xs text-muted-foreground mt-1">Hỗ trợ nhiều file, tối đa 50MB/file</p>
                 </div>
 
-                {pendingFiles.length > 0 && (
+                {pendingFiles.filter(f => f.source === 'file').length > 0 && (
                   <ScrollArea className="flex-1 mt-3">
                     <div className="space-y-2 pr-2">
-                      {pendingFiles.map((item) => (
+                      {pendingFiles.filter(f => f.source === 'file').map((item) => (
                         <div key={item.id} className={cn(
                           "flex items-center gap-3 p-2.5 rounded-lg border bg-card",
                           item.status === 'done' && "border-green-200 bg-green-500/5",
@@ -587,10 +596,10 @@ export default function ResourceUploadDialog({
                   <p className="text-xs text-muted-foreground mt-1">Toàn bộ file trong thư mục sẽ được tải lên</p>
                 </div>
 
-                {pendingFiles.length > 0 && (
+                {pendingFiles.filter(f => f.source === 'folder').length > 0 && (
                   <ScrollArea className="flex-1 mt-3">
                     <div className="space-y-2 pr-2">
-                      {pendingFiles.map((item) => (
+                      {pendingFiles.filter(f => f.source === 'folder').map((item) => (
                         <div key={item.id} className={cn(
                           "flex items-center gap-3 p-2.5 rounded-lg border bg-card",
                           item.status === 'done' && "border-green-200 bg-green-500/5",
@@ -641,7 +650,7 @@ export default function ResourceUploadDialog({
                   </ScrollArea>
                 )}
 
-                {pendingFiles.length === 0 && (
+                {pendingFiles.filter(f => f.source === 'folder').length === 0 && (
                   <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
                     Chưa chọn thư mục nào.
                   </div>
