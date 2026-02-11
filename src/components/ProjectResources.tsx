@@ -652,6 +652,8 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
         folderName={folders.find(f => f.id === uploadToFolder)?.name}
         onSuccess={() => {
           fetchResources();
+        }}
+        onClose={() => {
           setIsUploadOpen(false);
           setUploadToFolder(null);
         }}
