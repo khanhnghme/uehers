@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,13 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ResourceUploadDialog from '@/components/ResourceUploadDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -151,9 +149,6 @@ function formatFileSize(bytes: number): string {
 export default function ProjectResources({ groupId, isLeader }: ProjectResourcesProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderFileInputRef = useRef<HTMLInputElement>(null);
-  
   const [resources, setResources] = useState<ProjectResource[]>([]);
   const [folders, setFolders] = useState<ResourceFolder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -163,16 +158,7 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
   
   // Upload dialog
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadFileName, setUploadFileName] = useState(''); // Custom file name
-  const [uploadCategory, setUploadCategory] = useState('general');
-  const [uploadDescription, setUploadDescription] = useState('');
   const [uploadToFolder, setUploadToFolder] = useState<string | null>(null);
-  const [uploadType, setUploadType] = useState<'file' | 'link'>('file');
-  const [uploadLinkUrl, setUploadLinkUrl] = useState('');
-  const [uploadLinkName, setUploadLinkName] = useState('');
   
   // Folder dialog
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
@@ -247,154 +233,9 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, folderId: string | null = null) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 50 * 1024 * 1024) {
-        toast({ title: 'Lỗi', description: 'File quá lớn. Giới hạn 50MB.', variant: 'destructive' });
-        return;
-      }
-      setUploadFile(file);
-      // Set default file name (without extension)
-      const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-      setUploadFileName(nameWithoutExt);
-      setUploadToFolder(folderId);
-      setUploadType('file');
-      setIsUploadOpen(true);
-    }
-  };
-
-  const openUploadDialog = (folderId: string | null = null, type: 'file' | 'link' = 'file') => {
+  const openUploadDialog = (folderId: string | null = null) => {
     setUploadToFolder(folderId);
-    setUploadType(type);
-    setUploadFile(null);
-    setUploadFileName('');
-    setUploadLinkUrl('');
-    setUploadLinkName('');
-    setUploadCategory('general');
-    setUploadDescription('');
-    
-    if (type === 'file') {
-      // Trigger file input for file type
-      if (folderId) {
-        folderFileInputRef.current?.click();
-      } else {
-        fileInputRef.current?.click();
-      }
-    } else {
-      // Open dialog directly for link type
-      setIsUploadOpen(true);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (uploadType === 'file' && !uploadFile) return;
-    if (uploadType === 'link' && (!uploadLinkUrl.trim() || !uploadLinkName.trim())) {
-      toast({ title: 'Lỗi', description: 'Vui lòng nhập tên và URL của link', variant: 'destructive' });
-      return;
-    }
-    
-    setIsUploading(true);
-    setUploadProgress(0);
-    
-    const progressInterval = uploadType === 'file' ? setInterval(() => {
-      setUploadProgress(prev => Math.min(prev + 10, 90));
-    }, 200) : null;
-    
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error('Chưa đăng nhập');
-
-      if (uploadType === 'file' && uploadFile) {
-        // File upload
-        const fileExt = uploadFile.name.split('.').pop();
-        const storageName = `${groupId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('project-resources')
-          .upload(storageName, uploadFile);
-        
-        if (uploadError) throw uploadError;
-        
-        const { data: urlData } = supabase.storage
-          .from('project-resources')
-          .getPublicUrl(storageName);
-        
-        // Use custom file name if provided
-        const finalFileName = uploadFileName.trim() 
-          ? `${uploadFileName.trim()}.${fileExt}` 
-          : uploadFile.name;
-        
-        const { error: insertError } = await (supabase
-          .from('project_resources')
-          .insert({
-            group_id: groupId,
-            name: finalFileName,
-            file_path: urlData.publicUrl,
-            storage_name: storageName,
-            file_size: uploadFile.size,
-            file_type: uploadFile.type,
-            category: uploadCategory,
-            description: uploadDescription || null,
-            uploaded_by: userData.user.id,
-            folder_id: uploadToFolder,
-            resource_type: 'file',
-            link_url: null
-          } as any) as any);
-        
-        if (insertError) throw insertError;
-        
-        if (progressInterval) clearInterval(progressInterval);
-        setUploadProgress(100);
-        
-        toast({ title: 'Thành công', description: 'Đã tải lên tài nguyên' });
-      } else {
-        // Link upload
-        const { error: insertError } = await (supabase
-          .from('project_resources')
-          .insert({
-            group_id: groupId,
-            name: uploadLinkName.trim(),
-            file_path: null,
-            storage_name: null,
-            file_size: 0,
-            file_type: null,
-            category: uploadCategory,
-            description: uploadDescription || null,
-            uploaded_by: userData.user.id,
-            folder_id: uploadToFolder,
-            resource_type: 'link',
-            link_url: uploadLinkUrl.trim()
-          } as any) as any);
-        
-        if (insertError) throw insertError;
-        
-        toast({ title: 'Thành công', description: 'Đã thêm link tài nguyên' });
-      }
-      
-      resetUploadForm();
-      fetchResources();
-    } catch (error: any) {
-      if (progressInterval) clearInterval(progressInterval);
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  };
-
-  const resetUploadForm = () => {
-    setIsUploadOpen(false);
-    setUploadFile(null);
-    setUploadFileName('');
-    setUploadCategory('general');
-    setUploadDescription('');
-    setUploadToFolder(null);
-    setUploadType('file');
-    setUploadLinkUrl('');
-    setUploadLinkName('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (folderFileInputRef.current) folderFileInputRef.current.value = '';
+    setIsUploadOpen(true);
   };
 
   // Handle resource drag & drop (reorder + move between folders)
@@ -802,18 +643,18 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
 
   return (
     <div className="space-y-4">
-      {/* Hidden file inputs */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        onChange={(e) => handleFileSelect(e, null)}
-      />
-      <input
-        ref={folderFileInputRef}
-        type="file"
-        className="hidden"
-        onChange={(e) => handleFileSelect(e, uploadToFolder)}
+      {/* Upload Dialog */}
+      <ResourceUploadDialog
+        open={isUploadOpen}
+        onOpenChange={setIsUploadOpen}
+        groupId={groupId}
+        folderId={uploadToFolder}
+        folderName={folders.find(f => f.id === uploadToFolder)?.name}
+        onSuccess={() => {
+          fetchResources();
+          setIsUploadOpen(false);
+          setUploadToFolder(null);
+        }}
       />
 
       {/* Header */}
@@ -841,24 +682,10 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
               <FolderPlus className="w-4 h-4 mr-2" />
               Tạo thư mục
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Thêm mới
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => openUploadDialog(null, 'file')}>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Tải file lên
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => openUploadDialog(null, 'link')}>
-                  <LinkIcon className="w-4 h-4 mr-2" />
-                  Thêm link
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button size="sm" onClick={() => openUploadDialog(null)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Thêm tài nguyên
+            </Button>
           </div>
         )}
       </div>
@@ -903,11 +730,7 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
                   <FolderPlus className="w-4 h-4 mr-2" />
                   Tạo thư mục
                 </Button>
-                <Button variant="outline" onClick={() => openUploadDialog(null, 'link')}>
-                  <LinkIcon className="w-4 h-4 mr-2" />
-                  Thêm link
-                </Button>
-                <Button onClick={() => openUploadDialog(null, 'file')}>
+                <Button onClick={() => openUploadDialog(null)}>
                   <Upload className="w-4 h-4 mr-2" />
                   Tải file lên
                 </Button>
@@ -955,20 +778,10 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={(e) => {
                                   e.stopPropagation();
-                                  setUploadToFolder(folder.id);
-                                  folderFileInputRef.current?.click();
+                                  openUploadDialog(folder.id);
                                 }}>
                                   <Upload className="w-4 h-4 mr-2" />
-                                  Tải file vào đây
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={(e) => {
-                                  e.stopPropagation();
-                                  setUploadToFolder(folder.id);
-                                  setUploadType('link');
-                                  setIsUploadOpen(true);
-                                }}>
-                                  <LinkIcon className="w-4 h-4 mr-2" />
-                                  Thêm link vào đây
+                                  Thêm tài nguyên vào đây
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={(e) => {
                                   e.stopPropagation();
@@ -1015,25 +828,10 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
                                     <Button 
                                       variant="link" 
                                       size="sm"
-                                      onClick={() => {
-                                        setUploadToFolder(folder.id);
-                                        folderFileInputRef.current?.click();
-                                      }}
+                                      onClick={() => openUploadDialog(folder.id)}
                                     >
                                       <Upload className="w-3 h-3 mr-1" />
-                                      Tải file
-                                    </Button>
-                                    <Button 
-                                      variant="link" 
-                                      size="sm"
-                                      onClick={() => {
-                                        setUploadToFolder(folder.id);
-                                        setUploadType('link');
-                                        setIsUploadOpen(true);
-                                      }}
-                                    >
-                                      <LinkIcon className="w-3 h-3 mr-1" />
-                                      Thêm link
+                                      Thêm tài nguyên
                                     </Button>
                                   </div>
                                 )}
@@ -1086,179 +884,6 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
           </div>
         </DragDropContext>
       )}
-
-      {/* Upload Dialog */}
-      <Dialog open={isUploadOpen} onOpenChange={(open) => {
-        if (!open) resetUploadForm();
-        else setIsUploadOpen(open);
-      }}>
-        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden flex flex-col" style={{ aspectRatio: '16/9' }}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {uploadType === 'file' ? (
-                <><Upload className="w-5 h-5 text-primary" /> Tải lên tài nguyên</>
-              ) : (
-                <><LinkIcon className="w-5 h-5 text-primary" /> Thêm link tài nguyên</>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {uploadToFolder 
-                ? `Thêm vào thư mục "${folders.find(f => f.id === uploadToFolder)?.name}"`
-                : uploadType === 'file' ? 'Thêm tài liệu, mẫu hoặc công cụ vào dự án' : 'Thêm link tham khảo vào dự án'
-              }
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 overflow-y-auto flex-1 pr-1">
-            {/* Tabs for file or link */}
-            {!uploadFile && (
-              <Tabs value={uploadType} onValueChange={(v) => setUploadType(v as 'file' | 'link')}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="file" className="gap-2">
-                    <Upload className="w-4 h-4" />
-                    Tải file
-                  </TabsTrigger>
-                  <TabsTrigger value="link" className="gap-2">
-                    <LinkIcon className="w-4 h-4" />
-                    Thêm link
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            )}
-            
-            {uploadType === 'file' ? (
-              <>
-                {/* File Preview */}
-                {uploadFile && (
-                  <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg border">
-                    <div className="w-12 h-12 rounded-lg bg-background flex items-center justify-center border">
-                      {getFileIcon(uploadFile.name, 'md')}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{uploadFile.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatFileSize(uploadFile.size)}</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Custom File Name */}
-                {uploadFile && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Tên file (tùy chọn)</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={uploadFileName}
-                        onChange={(e) => setUploadFileName(e.target.value)}
-                        placeholder="Nhập tên file..."
-                      />
-                      <span className="text-sm text-muted-foreground shrink-0">
-                        .{uploadFile.name.split('.').pop()}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Để trống nếu muốn giữ nguyên tên gốc</p>
-                  </div>
-                )}
-
-                {!uploadFile && (
-                  <div 
-                    className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">Click để chọn file</p>
-                    <p className="text-xs text-muted-foreground mt-1">Tối đa 50MB</p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {/* Link Name */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Tên hiển thị <span className="text-destructive">*</span></Label>
-                  <Input
-                    value={uploadLinkName}
-                    onChange={(e) => setUploadLinkName(e.target.value)}
-                    placeholder="VD: Tài liệu tham khảo từ Google Drive..."
-                  />
-                </div>
-                
-                {/* Link URL */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">URL <span className="text-destructive">*</span></Label>
-                  <Input
-                    value={uploadLinkUrl}
-                    onChange={(e) => setUploadLinkUrl(e.target.value)}
-                    placeholder="https://..."
-                    type="url"
-                  />
-                </div>
-              </>
-            )}
-            
-            {/* Category Select */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Phân loại</Label>
-              <Select value={uploadCategory} onValueChange={setUploadCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={cn("text-[10px]", cat.color)}>
-                          {cat.label}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Description */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Mô tả (tùy chọn)</Label>
-              <Textarea
-                value={uploadDescription}
-                onChange={(e) => setUploadDescription(e.target.value)}
-                placeholder="Mô tả ngắn về tài nguyên..."
-                rows={2}
-              />
-            </div>
-            
-            {/* Upload Progress */}
-            {isUploading && uploadType === 'file' && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Đang tải lên...</span>
-                  <span className="font-medium">{uploadProgress}%</span>
-                </div>
-                <Progress value={uploadProgress} className="h-2" />
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={resetUploadForm}>
-              Hủy
-            </Button>
-            <Button 
-              onClick={handleUpload} 
-              disabled={isUploading || (uploadType === 'file' && !uploadFile) || (uploadType === 'link' && (!uploadLinkUrl.trim() || !uploadLinkName.trim()))}
-              className="gap-2"
-            >
-              {isUploading ? (
-                <><Loader2 className="w-4 h-4 animate-spin" />Đang xử lý...</>
-              ) : uploadType === 'file' ? (
-                <><Upload className="w-4 h-4" />Tải lên</>
-              ) : (
-                <><LinkIcon className="w-4 h-4" />Thêm link</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Folder Dialog */}
       <Dialog open={isFolderDialogOpen} onOpenChange={setIsFolderDialogOpen}>
