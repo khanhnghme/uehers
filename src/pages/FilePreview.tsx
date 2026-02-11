@@ -609,16 +609,20 @@ export default function FilePreview() {
                       </div>
                     ) : isPDF(fileName) ? (
                       <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '400px' }}>
-                        <iframe
-                          src={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+                        <object
+                          data={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+                          type="application/pdf"
                           className="w-full h-full border-0"
                           title={fileName}
-                          style={{ 
-                            WebkitOverflowScrolling: 'touch',
-                            overflow: 'auto'
-                          }}
-                          allow="fullscreen"
-                        />
+                        >
+                          {/* Fallback: use Google Docs Viewer if browser can't render PDF */}
+                          <iframe
+                            src={`https://docs.google.com/gview?url=${encodeURIComponent(fileUrl!)}&embedded=true`}
+                            className="w-full h-full border-0"
+                            title={fileName}
+                            allow="fullscreen"
+                          />
+                        </object>
                       </div>
                     ) : isOfficeDoc(fileName) && fileUrl ? (
                       <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '400px' }}>
