@@ -83,12 +83,17 @@ export default function TaskNotes({ taskId, className = '', compact = false }: T
   
   // Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
+  // Track the last content we saved to avoid realtime echo overwriting our own edits
+  const lastSavedContentRef = useRef<string | null>(null);
 
   const selectedNote = notes.find(n => n.id === selectedNoteId);
 
   // Autosave handler
   const handleAutosave = useCallback(async (dataToSave: string) => {
     if (!selectedNoteId || !isMountedRef.current) return;
+    
+    // Mark this content as "ours" so realtime won't overwrite it
+    lastSavedContentRef.current = dataToSave;
     
     const { error } = await supabase
       .from('task_notes')
@@ -233,11 +238,14 @@ export default function TaskNotes({ taskId, className = '', compact = false }: T
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as TaskNote;
             setNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
-            // If this is the currently selected note and content changed from another user,
-            // update the editor content (only if we're not the one who made the change)
-            if (updated.id === selectedNoteId && updated.content !== content) {
-              // Only update if the change didn't come from our own autosave
-              // Use a small tolerance: if the content is different from what we have locally
+            // If this is the currently selected note and content changed from another user
+            if (updated.id === selectedNoteId) {
+              // Skip if this update came from our own autosave
+              if (lastSavedContentRef.current === updated.content) {
+                lastSavedContentRef.current = null; // Reset the flag
+                return;
+              }
+              // Update from another user — apply it
               setContent(updated.content || '');
               resetSavedData(updated.content || '');
             }
