@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useFilePreview } from '@/contexts/FilePreviewContext';
 import {
   Dialog,
   DialogContent,
@@ -93,6 +94,7 @@ export default function SubmissionHistoryPopup({
   currentSubmissionLink 
 }: SubmissionHistoryPopupProps) {
   const navigate = useNavigate();
+  const { openFilePreview } = useFilePreview();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<SubmissionHistoryEntry[]>([]);
@@ -157,8 +159,7 @@ export default function SubmissionHistoryPopup({
     params.set('size', fileSize.toString());
     params.set('taskId', taskId);
     if (groupId) params.set('groupId', groupId);
-    navigate(`/file-preview?${params.toString()}`);
-    setIsOpen(false);
+    openFilePreview(`/file-preview?${params.toString()}`);
   };
 
   // Pagination

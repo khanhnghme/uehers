@@ -19,6 +19,7 @@ import {
   Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useFilePreview } from '@/contexts/FilePreviewContext';
 
 export interface UploadedFile {
   file_path: string;
@@ -108,6 +109,7 @@ export default function MultiFileUploadSubmission({
 }: MultiFileUploadSubmissionProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { openFilePreview } = useFilePreview();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -352,7 +354,7 @@ export default function MultiFileUploadSubmission({
     params.set('name', file.file_name);
     params.set('size', file.file_size.toString());
     params.set('taskId', taskId);
-    navigate(`/file-preview?${params.toString()}`);
+    openFilePreview(`/file-preview?${params.toString()}`);
   };
 
   const startEditing = (index: number, currentName: string) => {
