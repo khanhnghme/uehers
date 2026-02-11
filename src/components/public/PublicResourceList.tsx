@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useFilePreview } from '@/contexts/FilePreviewContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -112,6 +113,7 @@ function formatFileSize(bytes: number): string {
 
 export default function PublicResourceList({ groupId }: PublicResourceListProps) {
   const navigate = useNavigate();
+  const { openFilePreview } = useFilePreview();
   const [resources, setResources] = useState<ProjectResource[]>([]);
   const [folders, setFolders] = useState<ResourceFolder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -153,7 +155,7 @@ export default function PublicResourceList({ groupId }: PublicResourceListProps)
     params.set('url', resource.file_path);
     params.set('name', resource.name);
     params.set('source', 'resource');
-    navigate(`/file-preview?${params.toString()}`);
+    openFilePreview(`/file-preview?${params.toString()}`);
   };
 
   const handleDownload = (e: React.MouseEvent, resource: ProjectResource) => {

@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useFilePreview } from '@/contexts/FilePreviewContext';
 import { 
   File, 
   FileText, 
@@ -90,6 +91,7 @@ function cleanFileName(name: string): string {
 
 export default function ResourceLinkRenderer({ content, className, nameMaxWidth = '180px' }: ResourceLinkRendererProps) {
   const navigate = useNavigate();
+  const { openFilePreview } = useFilePreview();
   
   if (!content) return null;
   
@@ -179,7 +181,7 @@ export default function ResourceLinkRenderer({ content, className, nameMaxWidth 
             }
           params.set('name', displayName);
           params.set('source', 'resource');
-          navigate(`/file-preview?${params.toString()}`);
+          openFilePreview(`/file-preview?${params.toString()}`);
         }}
         className="inline-flex items-center gap-1.5 px-2 py-1 my-0.5 rounded-md bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary text-xs font-medium transition-colors cursor-pointer shadow-sm"
         title={`Xem: ${displayName}`}

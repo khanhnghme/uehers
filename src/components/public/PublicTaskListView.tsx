@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useFilePreview } from '@/contexts/FilePreviewContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -30,6 +31,7 @@ type ViewMode = 'compact' | 'detailed';
 
 export default function PublicTaskListView({ stages, tasks, groupId }: PublicTaskListViewProps) {
   const navigate = useNavigate();
+  const { openFilePreview } = useFilePreview();
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(stages.map(s => s.id)));
   const [viewMode, setViewMode] = useState<ViewMode>('compact');
@@ -136,7 +138,7 @@ export default function PublicTaskListView({ stages, tasks, groupId }: PublicTas
       params.set('size', (item.file_size || 0).toString());
       if (taskId) params.set('taskId', taskId);
       if (groupId) params.set('groupId', groupId);
-      navigate(`/file-preview?${params.toString()}`);
+      openFilePreview(`/file-preview?${params.toString()}`);
     } else if (item.url) {
       window.open(item.url, '_blank', 'noopener,noreferrer');
     }
