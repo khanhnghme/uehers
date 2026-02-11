@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, Maximize2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface FilePreviewContextType {
   openFilePreview: (url: string) => void;
@@ -30,6 +31,17 @@ export function FilePreviewProvider({ children }: { children: React.ReactNode })
     setPreviewUrl('');
   }, []);
 
+  // Listen for close messages from iframe (FilePreview "Quay lại" button)
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'close-file-preview') {
+        closeFilePreview();
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [closeFilePreview]);
+
   const handleOpenInNewTab = () => {
     window.open(previewUrl, '_blank', 'noopener,noreferrer');
   };
@@ -39,42 +51,36 @@ export function FilePreviewProvider({ children }: { children: React.ReactNode })
       {children}
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) closeFilePreview(); }}>
         <DialogContent
-          className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col [&>button:last-child]:hidden"
+          className="max-w-[96vw] w-[96vw] h-[94vh] max-h-[94vh] p-0 gap-0 overflow-hidden rounded-xl border-0 shadow-2xl [&>button:last-child]:hidden"
           onInteractOutside={(e) => e.preventDefault()}
         >
-          {/* Custom header bar */}
-          <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50 shrink-0">
-            <span className="text-sm font-medium text-muted-foreground">Xem trước file</span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleOpenInNewTab}
-                className="gap-2 text-xs"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Mở trong tab mới
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={closeFilePreview}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          {/* iframe loads the actual FilePreview page */}
-          <div className="flex-1 min-h-0">
+          {/* Full-size iframe - loads the exact FilePreview page */}
+          <div className="w-full h-full relative">
             {previewUrl && (
               <iframe
                 src={previewUrl}
-                className="w-full h-full border-0"
+                className="w-full h-full border-0 rounded-xl"
                 title="File Preview"
-                sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
               />
             )}
+            {/* Floating action button - open in new tab */}
+            <div className="absolute bottom-4 right-4 z-10">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    onClick={handleOpenInNewTab}
+                    className="h-10 w-10 rounded-full shadow-lg border bg-background/95 backdrop-blur-sm hover:bg-background"
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left">
+                  <p>Mở trong tab mới</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

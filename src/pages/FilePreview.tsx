@@ -136,14 +136,20 @@ export default function FilePreview() {
   const isPublicRoute = !!shareToken;
   const isDirectUrl = !!directUrl || !!resourceId;
 
+  const isInIframe = window.self !== window.top;
+
   const handleGoBack = () => {
+    // If inside modal iframe, close the modal
+    if (isInIframe) {
+      window.parent.postMessage({ type: 'close-file-preview' }, '*');
+      return;
+    }
     if (isSemanticRoute || resolvedProjectSlug) {
       const slug = resolvedProjectSlug || projectSlug;
       navigate(`/p/${slug}?tab=tasks${resolvedTaskId ? `&task=${resolvedTaskId}` : ''}`);
     } else if (isPublicRoute) {
       navigate(`/s/${shareToken}`);
     } else if (isDirectUrl) {
-      // Go back to previous page for direct URL mode
       navigate(-1);
     } else if (legacyGroupId) {
       const projectPath = isUUID(legacyGroupId) ? `/groups/${legacyGroupId}` : `/p/${legacyGroupId}`;
