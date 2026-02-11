@@ -154,24 +154,11 @@ const getMainAssignee = (task: Task) => {
   return task.task_assignments[0].profiles?.full_name || null;
 };
 
-// Calculate task code: [stage_order].[task_order_within_stage]
-const getTaskCode = (task: Task, allTasks: Task[], stages: Stage[]) => {
+// Calculate task code: [stage_order].[task_index_in_displayed_list]
+// taskIndexInStage is the 0-based index of the task in the currently displayed order
+const getTaskCode = (task: Task, stages: Stage[], stageIndex: number, taskIndexInStage: number) => {
   if (!task.stage_id) return null;
-  
-  // Find stage order (1-indexed, based on created order)
-  const sortedStages = [...stages].sort((a, b) => 
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-  const stageOrder = sortedStages.findIndex(s => s.id === task.stage_id) + 1;
-  if (stageOrder === 0) return null;
-  
-  // Find task order within stage (1-indexed, based on created order)
-  const stageTasks = allTasks
-    .filter(t => t.stage_id === task.stage_id)
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  const taskOrder = stageTasks.findIndex(t => t.id === task.id) + 1;
-  
-  return `${stageOrder}.${taskOrder}`;
+  return `${stageIndex + 1}.${taskIndexInStage + 1}`;
 };
 
 const isOverdue = (deadline: string | null) => isDeadlineOverdue(deadline);
@@ -1180,7 +1167,7 @@ export default function TaskListView({
                                   >
                                     <TaskRow
                                       task={task}
-                                      taskCode={getTaskCode(task, tasks, stages)}
+                                      taskCode={getTaskCode(task, stages, stageIndex, index)}
                                       stageColor={stageColor}
                                       isLeaderInGroup={isLeaderInGroup}
                                       isAssignee={isUserAssignee(task)}

@@ -625,6 +625,7 @@ export type Database = {
           category: string | null
           created_at: string
           description: string | null
+          display_order: number | null
           file_path: string | null
           file_size: number
           file_type: string | null
@@ -642,6 +643,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          display_order?: number | null
           file_path?: string | null
           file_size?: number
           file_type?: string | null
@@ -659,6 +661,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string | null
+          display_order?: number | null
           file_path?: string | null
           file_size?: number
           file_type?: string | null
