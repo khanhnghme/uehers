@@ -63,23 +63,17 @@ export function FilePreviewProvider({ children }: { children: React.ReactNode })
                 title="File Preview"
               />
             )}
-            {/* Floating action button - open in new tab */}
-            <div className="absolute bottom-4 right-4 z-10">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    onClick={handleOpenInNewTab}
-                    className="h-10 w-10 rounded-full shadow-lg border bg-background/95 backdrop-blur-sm hover:bg-background"
-                  >
-                    <Maximize2 className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left">
-                  <p>Mở trong tab mới</p>
-                </TooltipContent>
-              </Tooltip>
+            {/* Floating button - open in new tab */}
+            <div className="absolute top-3 right-3 z-10">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleOpenInNewTab}
+                className="gap-2 shadow-lg border bg-background/95 backdrop-blur-sm hover:bg-background text-xs font-medium"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Mở trong tab mới
+              </Button>
             </div>
           </div>
         </DialogContent>
