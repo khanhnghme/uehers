@@ -91,13 +91,16 @@ interface BackupTaskComment {
 interface BackupResource {
   name: string;
   description: string | null;
-  file_path: string;
+  file_path: string | null;
   file_size: number;
   file_type: string | null;
   category: string | null;
   folder_name: string | null;
   uploaded_by_student_id: string;
   created_at: string;
+  resource_type: string;
+  link_url: string | null;
+  storage_name: string | null;
 }
 
 interface BackupResourceFolder {
@@ -511,8 +514,11 @@ export default function AdminBackupRestore() {
       });
 
       // Project resources
+      // Project resources (only file-type resources, using storage_name as the actual storage path)
       resourcesRes.data?.forEach(res => {
-        filesToDownload.push({ path: res.file_path, name: res.name, size: res.file_size, bucket: 'project-resources' });
+        if (res.resource_type === 'file' && res.storage_name) {
+          filesToDownload.push({ path: res.storage_name, name: res.name, size: res.file_size, bucket: 'project-resources' });
+        }
       });
 
       // Remove duplicates
@@ -641,7 +647,10 @@ export default function AdminBackupRestore() {
         category: res.category,
         folder_name: res.folder_id ? folderIdToName.get(res.folder_id) || null : null,
         uploaded_by_student_id: userIdToStudentId.get(res.uploaded_by) || '',
-        created_at: res.created_at
+        created_at: res.created_at,
+        resource_type: res.resource_type || 'file',
+        link_url: res.link_url,
+        storage_name: res.storage_name
       })) || [];
 
       // Process activity logs
@@ -1279,30 +1288,80 @@ export default function AdminBackupRestore() {
         
         for (const resource of backupData.resources) {
           const userId = studentIdToUserId.get(resource.uploaded_by_student_id) || user!.id;
-          const newPathInfo = oldToNewPath.get(`project-resources/${resource.file_path}`) || 
-                             oldToNewPath.get(resource.file_path);
-          
-          if (!newPathInfo) continue;
-
           const folderId = resource.folder_name ? folderNameToId.get(resource.folder_name) || null : null;
+          const resType = resource.resource_type || 'file';
 
-          await supabase
-            .from('project_resources')
-            .insert({
-              group_id: newGroupId,
-              name: resource.name,
-              description: resource.description,
-              file_path: newPathInfo.path,
-              file_size: resource.file_size,
-              file_type: resource.file_type,
-              category: resource.category,
-              folder_id: folderId,
-              uploaded_by: userId,
-              storage_name: resource.name,
-              created_at: resource.created_at
-            });
+          if (resType === 'link') {
+            // Link resources - just insert the DB record with link_url
+            await supabase
+              .from('project_resources')
+              .insert({
+                group_id: newGroupId,
+                name: resource.name,
+                description: resource.description,
+                file_path: null,
+                link_url: resource.link_url,
+                file_size: 0,
+                file_type: null,
+                resource_type: 'link',
+                category: resource.category,
+                folder_id: folderId,
+                uploaded_by: userId,
+                storage_name: null,
+                created_at: resource.created_at
+              });
+            resourcesRestored++;
+          } else {
+            // File resources - try to find the new file path
+            const storageName = resource.storage_name || resource.file_path;
+            const newPathInfo = storageName 
+              ? (oldToNewPath.get(`project-resources/${storageName}`) || oldToNewPath.get(storageName || ''))
+              : null;
+            
+            if (newPathInfo) {
+              // File was successfully re-uploaded, get the new public URL
+              const { data: publicUrlData } = supabase.storage
+                .from('project-resources')
+                .getPublicUrl(newPathInfo.path);
 
-          resourcesRestored++;
+              await supabase
+                .from('project_resources')
+                .insert({
+                  group_id: newGroupId,
+                  name: resource.name,
+                  description: resource.description,
+                  file_path: publicUrlData?.publicUrl || null,
+                  file_size: resource.file_size,
+                  file_type: resource.file_type,
+                  resource_type: 'file',
+                  category: resource.category,
+                  folder_id: folderId,
+                  uploaded_by: userId,
+                  storage_name: newPathInfo.path,
+                  created_at: resource.created_at
+                });
+              resourcesRestored++;
+            } else {
+              // File not found in zip, still create record with original file_path
+              await supabase
+                .from('project_resources')
+                .insert({
+                  group_id: newGroupId,
+                  name: resource.name,
+                  description: resource.description,
+                  file_path: resource.file_path,
+                  file_size: resource.file_size,
+                  file_type: resource.file_type,
+                  resource_type: 'file',
+                  category: resource.category,
+                  folder_id: folderId,
+                  uploaded_by: userId,
+                  storage_name: resource.storage_name,
+                  created_at: resource.created_at
+                });
+              resourcesRestored++;
+            }
+          }
         }
       }
 
