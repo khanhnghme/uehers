@@ -372,7 +372,7 @@ export default function PublicProjectView() {
           )}
           
           {activeTab === 'members' && group.show_members_public && (
-            <PublicMemberList members={members} />
+            <PublicMemberList members={members} groupCreatorId={group.created_by} />
           )}
           
           {activeTab === 'activity' && group.show_activity_public && (

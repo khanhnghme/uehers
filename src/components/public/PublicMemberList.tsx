@@ -8,9 +8,10 @@ import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
 
 interface PublicMemberListProps {
   members: GroupMember[];
+  groupCreatorId?: string;
 }
 
-export default function PublicMemberList({ members }: PublicMemberListProps) {
+export default function PublicMemberList({ members, groupCreatorId }: PublicMemberListProps) {
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -25,7 +26,7 @@ export default function PublicMemberList({ members }: PublicMemberListProps) {
       fullName: m.profiles?.full_name || '',
       studentId: m.profiles?.student_id || '',
       email: m.profiles?.email || '',
-      role: getRoleDisplayName(m.role)
+      role: getRoleDisplayName(m.role, m.user_id === groupCreatorId)
     }));
     exportMembersToExcel(exportData, 'danh-sach-thanh-vien-project');
   };
@@ -65,10 +66,10 @@ export default function PublicMemberList({ members }: PublicMemberListProps) {
                   </div>
                 </div>
                 <Badge 
-                  variant={member.role === 'leader' ? 'default' : 'secondary'} 
-                  className={`shrink-0 ${member.role === 'leader' ? 'bg-primary' : ''}`}
+                  variant={member.user_id === groupCreatorId ? 'default' : member.role === 'leader' ? 'default' : 'secondary'} 
+                  className={`shrink-0 ${member.user_id === groupCreatorId ? 'bg-warning text-warning-foreground' : member.role === 'leader' ? 'bg-primary' : ''}`}
                 >
-                  {member.role === 'leader' ? 'Trưởng nhóm' : 'Thành viên'}
+                  {member.user_id === groupCreatorId ? 'Trưởng nhóm' : member.role === 'leader' ? 'Phó nhóm' : 'Thành viên'}
                 </Badge>
               </div>
             ))}

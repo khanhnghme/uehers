@@ -40,10 +40,11 @@ export function exportMembersToExcel(
   XLSX.writeFile(wb, `${filename}.xlsx`);
 }
 
-export function getRoleDisplayName(role: string): string {
+export function getRoleDisplayName(role: string, isGroupCreator?: boolean): string {
+  if (isGroupCreator) return 'Trưởng nhóm';
   switch (role) {
     case 'leader':
-      return 'Trưởng nhóm';
+      return 'Phó nhóm';
     case 'admin':
       return 'Admin';
     case 'member':
