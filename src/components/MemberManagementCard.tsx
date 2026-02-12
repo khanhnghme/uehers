@@ -401,7 +401,7 @@ export default function MemberManagementCard({
                       fullName: m.profiles?.full_name || '',
                       studentId: m.profiles?.student_id || '',
                       email: m.profiles?.email || '',
-                      role: getRoleDisplayName(m.role)
+                      role: getRoleDisplayName(m.role, m.user_id === groupCreatorId)
                     }));
                     exportMembersToExcel(exportData, `danh-sach-thanh-vien-project`);
                   }}

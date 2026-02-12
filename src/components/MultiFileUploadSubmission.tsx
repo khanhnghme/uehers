@@ -186,7 +186,7 @@ export default function MultiFileUploadSubmission({
         setUploadProgress(prev => {
           // Smooth increment, never decrease
           const increment = Math.max(0.2, (targetProgress - prev) * 0.1);
-          return Math.min(prev + increment, targetProgress);
+          return Math.max(prev, Math.min(prev + increment, targetProgress));
         });
       }
     }, 50); // Update every 50ms for smooth animation

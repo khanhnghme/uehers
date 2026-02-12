@@ -180,15 +180,8 @@ export default function TaskEditDialog({
         const hours = String(extendedDeadlineDate.getHours()).padStart(2, '0');
         const minutes = String(extendedDeadlineDate.getMinutes()).padStart(2, '0');
         updateData.extended_deadline = `${year}-${month}-${day}T${hours}:${minutes}`;
-        
-        if (!taskWithExtended.extended_deadline) {
-          updateData.extended_at = new Date().toISOString();
-          updateData.extended_by = user!.id;
-        }
       } else {
         updateData.extended_deadline = null;
-        updateData.extended_at = null;
-        updateData.extended_by = null;
       }
 
       const { error: taskError } = await supabase
@@ -540,11 +533,6 @@ export default function TaskEditDialog({
                           <p className="text-xs font-bold text-blue-700">{formatDeadlineShortVN(taskWithExtended.extended_deadline)}</p>
                         </div>
                       </div>
-                      {taskWithExtended.extended_at && (
-                        <p className="text-[10px] text-muted-foreground mt-2 text-center">
-                          Gia hạn lúc {format(new Date(taskWithExtended.extended_at), "HH:mm dd/MM/yyyy", { locale: vi })}
-                        </p>
-                      )}
                     </div>
                   )}
                 </div>
@@ -669,9 +657,9 @@ export default function TaskEditDialog({
                                   <p className="text-xs font-medium truncate">{member.profiles?.full_name}</p>
                                   <p className="text-[10px] text-muted-foreground">{member.profiles?.student_id}</p>
                                 </div>
-                                {member.role === 'leader' && (
+                {member.role === 'leader' && (
                                   <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 bg-warning/10 text-warning border-warning/30 shrink-0">
-                                    Leader
+                                    Phó nhóm
                                   </Badge>
                                 )}
                               </div>
