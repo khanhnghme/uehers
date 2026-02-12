@@ -551,7 +551,7 @@ export default function GroupDetail() {
                                         </div>
                                         {m.role === 'leader' && (
                                           <span className="text-[10px] px-2 py-1 rounded-full bg-warning/20 text-warning font-semibold shrink-0">
-                                            Leader
+                                            Phó nhóm
                                           </span>
                                         )}
                                       </div>

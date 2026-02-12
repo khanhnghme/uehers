@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import UserAvatar from '@/components/UserAvatar';
+import SystemErrorLogs from '@/components/SystemErrorLogs';
 import {
   MessageSquarePlus,
   Send,
@@ -49,6 +51,7 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  Bug,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -463,250 +466,274 @@ export default function FeedbackPage() {
           </Dialog>
         </div>
 
-        {/* Guidelines */}
-        <Card className="border-warning/30 bg-warning/5">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <Lightbulb className="w-5 h-5 text-warning shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-warning mb-1">Lưu ý về nội dung</p>
-                <p className="text-muted-foreground">
-                  Chức năng này dành cho góp ý về quy trình, cách làm việc và cải tiến hệ thống. 
-                  <span className="text-destructive font-medium"> Không dùng</span> để thông báo công việc, nhắc deadline hay phân công task.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Tabs */}
+        <Tabs defaultValue="feedback" className="space-y-4">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="feedback" className="gap-2">
+              <Lightbulb className="w-4 h-4" />
+              Góp ý người dùng
+            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="errors" className="gap-2">
+                <Bug className="w-4 h-4" />
+                Log lỗi hệ thống
+              </TabsTrigger>
+            )}
+          </TabsList>
 
-        {/* Feedback Feed */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        ) : feedbacks.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center">
-              <Lightbulb className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
-              <h3 className="text-lg font-semibold mb-2">Chưa có góp ý nào</h3>
-              <p className="text-muted-foreground mb-4">
-                Hãy là người đầu tiên chia sẻ ý kiến của bạn!
-              </p>
-              <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
-                <MessageSquarePlus className="w-4 h-4" />
-                Tạo góp ý đầu tiên
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {feedbacks.map(feedback => (
-              <Card
-                key={feedback.id}
-                className={`transition-all ${
-                  feedback.is_hidden ? 'opacity-60 border-destructive/30' : ''
-                }`}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <UserAvatar 
-                        src={feedback.user_avatar_url} 
-                        name={feedback.user_name}
-                        size="md"
-                        className="shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold">{feedback.user_name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            ({feedback.user_student_id})
-                          </span>
-                          {feedback.is_hidden && (
-                            <Badge variant="destructive" className="text-xs">
-                              <EyeOff className="w-3 h-3 mr-1" />
-                              Đã ẩn
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                          <Clock className="w-3 h-3" />
-                          {formatTime(feedback.created_at)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    {(feedback.user_id === user?.id || isAdmin) && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-popover">
-                          {isAdmin && (
-                            <DropdownMenuItem onClick={() => handleToggleHideFeedback(feedback)}>
-                              {feedback.is_hidden ? (
-                                <>
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  Hiện góp ý
-                                </>
-                              ) : (
-                                <>
-                                  <EyeOff className="w-4 h-4 mr-2" />
-                                  Ẩn góp ý
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            onClick={() => setFeedbackToDelete(feedback)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Xóa góp ý
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
+          <TabsContent value="feedback" className="space-y-4">
+            {/* Guidelines */}
+            <Card className="border-warning/30 bg-warning/5">
+              <CardContent className="py-4">
+                <div className="flex items-start gap-3">
+                  <Lightbulb className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-warning mb-1">Lưu ý về nội dung</p>
+                    <p className="text-muted-foreground">
+                      Chức năng này dành cho góp ý về quy trình, cách làm việc và cải tiến hệ thống. 
+                      <span className="text-destructive font-medium"> Không dùng</span> để thông báo công việc, nhắc deadline hay phân công task.
+                    </p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                  <CardTitle className="text-lg mt-2">{feedback.title}</CardTitle>
-                </CardHeader>
-
-                <CardContent className="pt-0 space-y-4">
-                  <p className="text-muted-foreground whitespace-pre-wrap">
-                    {feedback.content}
+            {/* Feedback Feed */}
+            {isLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : feedbacks.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <Lightbulb className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
+                  <h3 className="text-lg font-semibold mb-2">Chưa có góp ý nào</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Hãy là người đầu tiên chia sẻ ý kiến của bạn!
                   </p>
-
-                  {/* Comment toggle */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-2 text-muted-foreground hover:text-foreground"
-                    onClick={() => toggleExpand(feedback.id)}
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    {feedback.comment_count || 0} bình luận
-                    {expandedFeedback === feedback.id ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
+                  <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
+                    <MessageSquarePlus className="w-4 h-4" />
+                    Tạo góp ý đầu tiên
                   </Button>
-
-                  {/* Comments Section */}
-                  {expandedFeedback === feedback.id && (
-                    <div className="border-t pt-4 space-y-4">
-                      {loadingComments[feedback.id] ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                        </div>
-                      ) : (
-                        <>
-                          {/* Comment list */}
-                          {comments[feedback.id]?.length > 0 && (
-                            <ScrollArea className="max-h-[300px]">
-                              <div className="space-y-3 pr-4">
-                                {comments[feedback.id].map(comment => (
-                                  <div
-                                    key={comment.id}
-                                    className={`flex gap-3 p-3 rounded-lg bg-muted/50 ${
-                                      comment.is_hidden ? 'opacity-60' : ''
-                                    }`}
-                                  >
-                                    <UserAvatar 
-                                      src={comment.user_avatar_url} 
-                                      name={comment.user_name}
-                                      size="sm"
-                                      className="shrink-0"
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-medium text-sm">
-                                          {comment.user_name}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {formatTime(comment.created_at)}
-                                        </span>
-                                        {comment.is_hidden && (
-                                          <Badge variant="secondary" className="text-xs">
-                                            Đã ẩn
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <p className="text-sm mt-1 whitespace-pre-wrap">
-                                        {comment.content}
-                                      </p>
-                                    </div>
-                                    {(comment.user_id === user?.id || isAdmin) && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 shrink-0"
-                                        onClick={() => setCommentToDelete(comment)}
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </ScrollArea>
-                          )}
-
-                          {/* New comment input */}
-                          <div className="flex gap-2">
-                            <UserAvatar 
-                              src={profile?.avatar_url} 
-                              name={profile?.full_name}
-                              size="sm"
-                              className="shrink-0"
-                            />
-                            <div className="flex-1 flex gap-2">
-                              <Input
-                                placeholder="Viết bình luận..."
-                                value={newComment[feedback.id] || ''}
-                                onChange={e =>
-                                  setNewComment(prev => ({
-                                    ...prev,
-                                    [feedback.id]: e.target.value,
-                                  }))
-                                }
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handlePostComment(feedback.id);
-                                  }
-                                }}
-                                className="flex-1"
-                              />
-                              <Button
-                                size="icon"
-                                onClick={() => handlePostComment(feedback.id)}
-                                disabled={
-                                  postingComment[feedback.id] ||
-                                  !newComment[feedback.id]?.trim()
-                                }
-                              >
-                                {postingComment[feedback.id] ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Send className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
+            ) : (
+              <div className="space-y-4">
+                {feedbacks.map(feedback => (
+                  <Card
+                    key={feedback.id}
+                    className={`transition-all ${
+                      feedback.is_hidden ? 'opacity-60 border-destructive/30' : ''
+                    }`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          <UserAvatar 
+                            src={feedback.user_avatar_url} 
+                            name={feedback.user_name}
+                            size="md"
+                            className="shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold">{feedback.user_name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                ({feedback.user_student_id})
+                              </span>
+                              {feedback.is_hidden && (
+                                <Badge variant="destructive" className="text-xs">
+                                  <EyeOff className="w-3 h-3 mr-1" />
+                                  Đã ẩn
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                              <Clock className="w-3 h-3" />
+                              {formatTime(feedback.created_at)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        {(feedback.user_id === user?.id || isAdmin) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-popover">
+                              {isAdmin && (
+                                <DropdownMenuItem onClick={() => handleToggleHideFeedback(feedback)}>
+                                  {feedback.is_hidden ? (
+                                    <>
+                                      <Eye className="w-4 h-4 mr-2" />
+                                      Hiện góp ý
+                                    </>
+                                  ) : (
+                                    <>
+                                      <EyeOff className="w-4 h-4 mr-2" />
+                                      Ẩn góp ý
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                onClick={() => setFeedbackToDelete(feedback)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Xóa góp ý
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+
+                      <CardTitle className="text-lg mt-2">{feedback.title}</CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="pt-0 space-y-4">
+                      <p className="text-muted-foreground whitespace-pre-wrap">
+                        {feedback.content}
+                      </p>
+
+                      {/* Comment toggle */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-muted-foreground hover:text-foreground"
+                        onClick={() => toggleExpand(feedback.id)}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        {feedback.comment_count || 0} bình luận
+                        {expandedFeedback === feedback.id ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </Button>
+
+                      {/* Comments Section */}
+                      {expandedFeedback === feedback.id && (
+                        <div className="border-t pt-4 space-y-4">
+                          {loadingComments[feedback.id] ? (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : (
+                            <>
+                              {/* Comment list */}
+                              {comments[feedback.id]?.length > 0 && (
+                                <ScrollArea className="max-h-[300px]">
+                                  <div className="space-y-3 pr-4">
+                                    {comments[feedback.id].map(comment => (
+                                      <div
+                                        key={comment.id}
+                                        className={`flex gap-3 p-3 rounded-lg bg-muted/50 ${
+                                          comment.is_hidden ? 'opacity-60' : ''
+                                        }`}
+                                      >
+                                        <UserAvatar 
+                                          src={comment.user_avatar_url} 
+                                          name={comment.user_name}
+                                          size="sm"
+                                          className="shrink-0"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-medium text-sm">
+                                              {comment.user_name}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                              {formatTime(comment.created_at)}
+                                            </span>
+                                            {comment.is_hidden && (
+                                              <Badge variant="secondary" className="text-xs">
+                                                Đã ẩn
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <p className="text-sm mt-1 whitespace-pre-wrap">
+                                            {comment.content}
+                                          </p>
+                                        </div>
+                                        {(comment.user_id === user?.id || isAdmin) && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 shrink-0"
+                                            onClick={() => setCommentToDelete(comment)}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </ScrollArea>
+                              )}
+
+                              {/* New comment input */}
+                              <div className="flex gap-2">
+                                <UserAvatar 
+                                  src={profile?.avatar_url} 
+                                  name={profile?.full_name}
+                                  size="sm"
+                                  className="shrink-0"
+                                />
+                                <div className="flex-1 flex gap-2">
+                                  <Input
+                                    placeholder="Viết bình luận..."
+                                    value={newComment[feedback.id] || ''}
+                                    onChange={e =>
+                                      setNewComment(prev => ({
+                                        ...prev,
+                                        [feedback.id]: e.target.value,
+                                      }))
+                                    }
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handlePostComment(feedback.id);
+                                      }
+                                    }}
+                                    className="flex-1"
+                                  />
+                                  <Button
+                                    size="icon"
+                                    onClick={() => handlePostComment(feedback.id)}
+                                    disabled={
+                                      postingComment[feedback.id] ||
+                                      !newComment[feedback.id]?.trim()
+                                    }
+                                  >
+                                    {postingComment[feedback.id] ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Send className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="errors">
+              <SystemErrorLogs />
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
 
       {/* Delete Feedback Dialog */}
