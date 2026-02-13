@@ -288,7 +288,11 @@ export default function SubmissionHistoryPopup({
                       </div>
 
                       {/* Files & Links Grid */}
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className={`grid gap-2 ${
+                        links.length <= 2 ? 'grid-cols-1 sm:grid-cols-2' :
+                        links.length <= 4 ? 'grid-cols-2 lg:grid-cols-3' :
+                        'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+                      }`}>
                         {links.map((link: any, i: number) => {
                           if (link.type === 'file' || link.file_path) {
                             return (
