@@ -79,19 +79,40 @@ export function logError(entry: ErrorLogEntry) {
   // Prevent logging our own logging errors
   if (entry.error_message?.includes('system_error_logs')) return;
 
-  const key = getErrorKey(entry);
+  // Enrich with context
+  const enrichedEntry: ErrorLogEntry = {
+    ...entry,
+    url: entry.url || window.location.href,
+    metadata: {
+      ...entry.metadata,
+      route: window.location.pathname + window.location.search,
+      timestamp_local: new Date().toISOString(),
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      language: navigator.language,
+      online: navigator.onLine,
+    },
+  };
+
+  // Try to get current user id
+  try {
+    const sessionStr = localStorage.getItem('sb-wsdphdtdmixzvywklnzf-auth-token');
+    if (sessionStr) {
+      const session = JSON.parse(sessionStr);
+      if (session?.user?.id) {
+        enrichedEntry.user_id = session.user.id;
+      }
+    }
+  } catch { /* ignore */ }
+
+  const key = getErrorKey(enrichedEntry);
   const existing = RECENT_ERRORS.get(key);
 
   if (existing) {
     existing.count++;
-    // Update stack/component if newer info available
-    if (entry.error_stack) existing.entry.error_stack = entry.error_stack;
+    if (enrichedEntry.error_stack) existing.entry.error_stack = enrichedEntry.error_stack;
   } else {
     RECENT_ERRORS.set(key, {
-      entry: {
-        ...entry,
-        url: entry.url || window.location.href,
-      },
+      entry: enrichedEntry,
       count: 1,
     });
   }

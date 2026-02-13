@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -95,6 +95,48 @@ const isAudioFile = (fileName: string) => {
   const ext = fileName.split('.').pop()?.toLowerCase();
   return ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma'].includes(ext || '');
 };
+
+// PDF Viewer with automatic fallback to Google Docs
+function PdfViewer({ fileUrl, fileName }: { fileUrl: string; fileName: string }) {
+  const [useGoogleViewer, setUseGoogleViewer] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    setUseGoogleViewer(false);
+    // Set a timeout - if iframe doesn't load within 5s, switch to Google viewer
+    timerRef.current = setTimeout(() => {
+      setUseGoogleViewer(true);
+    }, 5000);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [fileUrl]);
+
+  const handleLoad = () => {
+    // Clear timeout if successfully loaded
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const src = useGoogleViewer
+    ? `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl)}&embedded=true`
+    : `${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`;
+
+  return (
+    <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '400px' }}>
+      <iframe
+        ref={iframeRef}
+        key={useGoogleViewer ? 'google' : 'direct'}
+        src={src}
+        className="w-full h-full border-0"
+        title={fileName}
+        allow="fullscreen"
+        onLoad={handleLoad}
+      />
+    </div>
+  );
+}
 
 export default function FilePreview() {
   // Support both semantic routes and legacy query params
@@ -524,28 +566,26 @@ export default function FilePreview() {
                 size="icon"
                 onClick={goToPrevFile}
                 disabled={currentFileIndex <= 0}
-                className="shrink-0"
+                className="shrink-0 h-8 w-8"
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
               
               <ScrollArea className="flex-1">
-                <div className="flex gap-2 py-1">
+                <div className="flex gap-1.5 py-1">
                   {taskFiles.map((file, index) => (
                     <button
                       key={file.file_path}
                       onClick={() => navigateToFile(file, index)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors shrink-0 ${
+                      title={`${file.file_name} (${formatFileSize(file.file_size)})`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors shrink-0 ${
                         index === currentFileIndex
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-background hover:bg-muted border'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'bg-background hover:bg-muted border border-border/60'
                       }`}
                     >
                       {getFileIcon(file.file_name, 'sm')}
-                      <span className="max-w-[120px] truncate">{file.file_name}</span>
-                      <Badge variant="outline" className="text-[10px] px-1.5">
-                        {formatFileSize(file.file_size)}
-                      </Badge>
+                      <span className="max-w-[100px] truncate">{file.file_name}</span>
                     </button>
                   ))}
                 </div>
@@ -556,14 +596,14 @@ export default function FilePreview() {
                 size="icon"
                 onClick={goToNextFile}
                 disabled={currentFileIndex >= taskFiles.length - 1}
-                className="shrink-0"
+                className="shrink-0 h-8 w-8"
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
               
-              <span className="text-sm text-muted-foreground shrink-0">
-                {currentFileIndex + 1} / {taskFiles.length}
-              </span>
+              <Badge variant="secondary" className="text-xs shrink-0 px-2">
+                {currentFileIndex + 1}/{taskFiles.length}
+              </Badge>
             </div>
           </div>
         </div>
@@ -617,21 +657,7 @@ export default function FilePreview() {
                         />
                       </div>
                     ) : isPDF(fileName) ? (
-                      <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '400px' }}>
-                        <iframe
-                          src={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-                          className="w-full h-full border-0"
-                          title={fileName}
-                          allow="fullscreen"
-                          onError={() => {
-                            // If direct PDF fails, try Google Docs viewer
-                            const iframe = document.querySelector(`iframe[title="${fileName}"]`) as HTMLIFrameElement;
-                            if (iframe && !iframe.src.includes('docs.google.com')) {
-                              iframe.src = `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl!)}&embedded=true`;
-                            }
-                          }}
-                        />
-                      </div>
+                      <PdfViewer fileUrl={fileUrl!} fileName={fileName} />
                     ) : isOfficeDoc(fileName) && fileUrl ? (
                       <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '400px' }}>
                         <iframe
