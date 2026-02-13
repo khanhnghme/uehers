@@ -173,6 +173,9 @@ export default function FilePreview() {
     } else if (legacyTaskId) {
       setResolvedTaskId(legacyTaskId);
       fetchTaskData(legacyTaskId);
+    } else if (legacyFilePath) {
+      // Single file mode (no taskId) - just load the file directly
+      loadFileByPath(legacyFilePath);
     }
   }, [projectSlug, taskSlug, legacyTaskId, isSemanticRoute, directUrl, resourceId]);
 
@@ -615,20 +618,19 @@ export default function FilePreview() {
                       </div>
                     ) : isPDF(fileName) ? (
                       <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '400px' }}>
-                        <object
-                          data={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
-                          type="application/pdf"
+                        <iframe
+                          src={`${fileUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
                           className="w-full h-full border-0"
                           title={fileName}
-                        >
-                          {/* Fallback: use Google Docs Viewer if browser can't render PDF */}
-                          <iframe
-                            src={`https://docs.google.com/gview?url=${encodeURIComponent(fileUrl!)}&embedded=true`}
-                            className="w-full h-full border-0"
-                            title={fileName}
-                            allow="fullscreen"
-                          />
-                        </object>
+                          allow="fullscreen"
+                          onError={() => {
+                            // If direct PDF fails, try Google Docs viewer
+                            const iframe = document.querySelector(`iframe[title="${fileName}"]`) as HTMLIFrameElement;
+                            if (iframe && !iframe.src.includes('docs.google.com')) {
+                              iframe.src = `https://docs.google.com/gview?url=${encodeURIComponent(fileUrl!)}&embedded=true`;
+                            }
+                          }}
+                        />
                       </div>
                     ) : isOfficeDoc(fileName) && fileUrl ? (
                       <div className="w-full" style={{ height: 'calc(100vh - 280px)', minHeight: '400px' }}>

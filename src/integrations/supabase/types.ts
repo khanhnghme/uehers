@@ -967,7 +967,9 @@ export type Database = {
           error_stack: string | null
           error_type: string
           id: string
+          last_occurred_at: string
           metadata: Json | null
+          occurrence_count: number
           url: string | null
           user_agent: string | null
           user_id: string | null
@@ -979,7 +981,9 @@ export type Database = {
           error_stack?: string | null
           error_type?: string
           id?: string
+          last_occurred_at?: string
           metadata?: Json | null
+          occurrence_count?: number
           url?: string | null
           user_agent?: string | null
           user_id?: string | null
@@ -991,7 +995,9 @@ export type Database = {
           error_stack?: string | null
           error_type?: string
           id?: string
+          last_occurred_at?: string
           metadata?: Json | null
+          occurrence_count?: number
           url?: string | null
           user_agent?: string | null
           user_id?: string | null
