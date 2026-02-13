@@ -43,6 +43,8 @@ interface ErrorLog {
   user_agent: string | null;
   metadata: any;
   created_at: string;
+  occurrence_count: number;
+  last_occurred_at: string;
 }
 
 export default function SystemErrorLogs() {
@@ -229,9 +231,14 @@ export default function SystemErrorLogs() {
                           <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${config.color}`}>
                             {config.label}
                           </Badge>
+                          {log.occurrence_count > 1 && (
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                              ×{log.occurrence_count}
+                            </Badge>
+                          )}
                           <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {formatTime(log.created_at)}
+                            {formatTime(log.last_occurred_at || log.created_at)}
                           </span>
                           {log.component && (
                             <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]">

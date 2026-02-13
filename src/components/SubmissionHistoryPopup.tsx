@@ -152,12 +152,13 @@ export default function SubmissionHistoryPopup({
     }
   };
 
-  const handleViewFile = (filePath: string, fileName: string, fileSize: number) => {
+  const handleViewFile = (filePath: string, fileName: string, fileSize: number, allFiles?: any[]) => {
     const params = new URLSearchParams();
     params.set('path', filePath);
     params.set('name', fileName);
     params.set('size', fileSize.toString());
-    params.set('taskId', taskId);
+    // Don't pass taskId to avoid loading wrong file list from current task
+    // Instead, the preview will show just the single file
     if (groupId) params.set('groupId', groupId);
     openFilePreview(`/file-preview?${params.toString()}`);
   };

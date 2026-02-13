@@ -10,54 +10,101 @@ interface ErrorLogEntry {
   metadata?: Record<string, any>;
 }
 
-const ERROR_QUEUE: ErrorLogEntry[] = [];
+// In-memory dedup: track recent errors to batch by key
+const RECENT_ERRORS = new Map<string, { entry: ErrorLogEntry; count: number }>();
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let isProcessing = false;
 let isInitialized = false;
 
-async function flushQueue() {
-  if (isProcessing || ERROR_QUEUE.length === 0) return;
+function getErrorKey(entry: ErrorLogEntry): string {
+  return `${entry.error_type}::${entry.error_message.slice(0, 200)}`;
+}
+
+async function flushErrors() {
+  if (isProcessing || RECENT_ERRORS.size === 0) return;
   isProcessing = true;
 
-  const batch = ERROR_QUEUE.splice(0, 10);
+  const batch = Array.from(RECENT_ERRORS.entries());
+  RECENT_ERRORS.clear();
+
   try {
-    await (supabase as any).from('system_error_logs').insert(
-      batch.map(entry => ({
-        ...entry,
-        user_agent: navigator.userAgent,
-      }))
-    );
+    for (const [, { entry, count }] of batch) {
+      // Try to find existing log with same error_type + message
+      const { data: existing } = await (supabase as any)
+        .from('system_error_logs')
+        .select('id, occurrence_count')
+        .eq('error_type', entry.error_type)
+        .eq('error_message', entry.error_message.slice(0, 2000))
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        // Update existing: increment count + update timestamp
+        await (supabase as any)
+          .from('system_error_logs')
+          .update({
+            occurrence_count: (existing[0].occurrence_count || 1) + count,
+            last_occurred_at: new Date().toISOString(),
+            error_stack: entry.error_stack || undefined,
+            component: entry.component || undefined,
+            url: entry.url || undefined,
+          })
+          .eq('id', existing[0].id);
+      } else {
+        // Insert new entry
+        await (supabase as any)
+          .from('system_error_logs')
+          .insert({
+            error_message: entry.error_message.slice(0, 2000),
+            error_type: entry.error_type,
+            error_stack: entry.error_stack,
+            component: entry.component,
+            url: entry.url,
+            user_id: entry.user_id,
+            metadata: entry.metadata,
+            user_agent: navigator.userAgent,
+            occurrence_count: count,
+            last_occurred_at: new Date().toISOString(),
+          });
+      }
+    }
   } catch (e) {
-    // Silently fail - don't create infinite error loops
     console.warn('[ErrorLogger] Failed to flush error logs:', e);
   } finally {
     isProcessing = false;
-    if (ERROR_QUEUE.length > 0) {
-      setTimeout(flushQueue, 1000);
-    }
   }
 }
 
 export function logError(entry: ErrorLogEntry) {
   // Prevent logging our own logging errors
   if (entry.error_message?.includes('system_error_logs')) return;
-  // Deduplicate rapid-fire identical errors
-  const lastEntry = ERROR_QUEUE[ERROR_QUEUE.length - 1];
-  if (lastEntry && lastEntry.error_message === entry.error_message && lastEntry.component === entry.component) return;
 
-  ERROR_QUEUE.push({
-    ...entry,
-    url: entry.url || window.location.href,
-  });
+  const key = getErrorKey(entry);
+  const existing = RECENT_ERRORS.get(key);
+
+  if (existing) {
+    existing.count++;
+    // Update stack/component if newer info available
+    if (entry.error_stack) existing.entry.error_stack = entry.error_stack;
+  } else {
+    RECENT_ERRORS.set(key, {
+      entry: {
+        ...entry,
+        url: entry.url || window.location.href,
+      },
+      count: 1,
+    });
+  }
 
   // Debounce flush
-  setTimeout(flushQueue, 500);
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = setTimeout(flushErrors, 2000);
 }
 
 export function initGlobalErrorHandler() {
   if (isInitialized) return;
   isInitialized = true;
 
-  // Catch unhandled JS errors
   window.addEventListener('error', (event) => {
     logError({
       error_message: event.message || 'Unknown error',
@@ -67,11 +114,9 @@ export function initGlobalErrorHandler() {
     });
   });
 
-  // Catch unhandled promise rejections
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
     const message = reason?.message || reason?.toString?.() || 'Unhandled promise rejection';
-    // Skip auth refresh token errors (common & non-critical)
     if (message.includes('Refresh Token') || message.includes('refresh_token')) return;
 
     logError({
@@ -81,7 +126,6 @@ export function initGlobalErrorHandler() {
     });
   });
 
-  // Intercept console.error
   const originalConsoleError = console.error;
   console.error = (...args: any[]) => {
     originalConsoleError.apply(console, args);
@@ -92,7 +136,6 @@ export function initGlobalErrorHandler() {
       try { return JSON.stringify(a); } catch { return String(a); }
     }).join(' ');
 
-    // Skip noisy/internal errors
     if (
       message.includes('system_error_logs') ||
       message.includes('Refresh Token') ||
