@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,8 @@ import {
   UserCheck,
   Download,
   Eye,
+  CheckSquare,
+  X,
 } from 'lucide-react';
 import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
 import { supabase } from '@/integrations/supabase/client';
@@ -109,6 +112,13 @@ export default function MemberManagementCard({
   const [profileToView, setProfileToView] = useState<Profile | null>(null);
   const [profileViewRole, setProfileViewRole] = useState<'admin' | 'leader' | 'member'>('member');
   const [profileViewIsCreator, setProfileViewIsCreator] = useState(false);
+
+  // Multi-select state
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
+  const [bulkMemberAction, setBulkMemberAction] = useState<'delete' | 'role' | null>(null);
+  const [bulkRole, setBulkRole] = useState<'member' | 'leader'>('member');
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   const getRoleBadge = (role: string, memberId?: string) => {
     // Check if this member is the group creator (Trưởng nhóm)
@@ -381,6 +391,72 @@ export default function MemberManagementCard({
     setNewRole(member.role === 'leader' ? 'member' : 'leader');
   };
 
+  // Multi-select helpers
+  const toggleMemberSelect = (memberId: string) => {
+    setSelectedMemberIds(prev => {
+      const next = new Set(prev);
+      if (next.has(memberId)) next.delete(memberId);
+      else next.add(memberId);
+      return next;
+    });
+  };
+
+  const selectableMembers = members.filter(m => !isMemberGroupCreator(m.user_id) && m.user_id !== currentUserId);
+
+  const selectAllMembers = () => {
+    setSelectedMemberIds(new Set(selectableMembers.map(m => m.id)));
+  };
+
+  const clearMemberSelection = () => {
+    setSelectedMemberIds(new Set());
+    setIsMultiSelectMode(false);
+  };
+
+  // Bulk delete members
+  const handleBulkDeleteMembers = async () => {
+    if (selectedMemberIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      const selectedMembers = members.filter(m => selectedMemberIds.has(m.id));
+      for (const member of selectedMembers) {
+        const { data: tasksData } = await supabase.from('tasks').select('id').eq('group_id', groupId);
+        if (tasksData && tasksData.length > 0) {
+          await supabase.from('task_assignments').delete()
+            .eq('user_id', member.user_id)
+            .in('task_id', tasksData.map(t => t.id));
+        }
+        await supabase.from('group_members').delete().eq('id', member.id);
+      }
+      toast({ title: 'Thành công', description: `Đã xóa ${selectedMemberIds.size} thành viên khỏi project` });
+      clearMemberSelection();
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkMemberAction(null);
+    }
+  };
+
+  // Bulk change role
+  const handleBulkChangeRole = async () => {
+    if (selectedMemberIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      for (const memberId of selectedMemberIds) {
+        await supabase.from('group_members').update({ role: bulkRole }).eq('id', memberId);
+      }
+      toast({ title: 'Thành công', description: `Đã đổi vai trò ${selectedMemberIds.size} thành viên thành ${bulkRole === 'leader' ? 'Phó nhóm' : 'Thành viên'}` });
+      clearMemberSelection();
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkMemberAction(null);
+    }
+  };
+
   return (
     <>
       <Card>
@@ -391,7 +467,19 @@ export default function MemberManagementCard({
               Thành viên Project ({members.length})
             </CardTitle>
             {isLeaderInGroup && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant={isMultiSelectMode ? "default" : "outline"}
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    if (isMultiSelectMode) clearMemberSelection();
+                    else setIsMultiSelectMode(true);
+                  }}
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  <span className="hidden sm:inline">{isMultiSelectMode ? 'Hủy chọn' : 'Chọn nhiều'}</span>
+                </Button>
                 <Button 
                   size="sm" 
                   variant="outline" 
@@ -422,12 +510,62 @@ export default function MemberManagementCard({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Multi-select bulk action bar */}
+          {isMultiSelectMode && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 p-2.5 rounded-lg border bg-muted/50">
+              <Checkbox
+                checked={selectedMemberIds.size === selectableMembers.length && selectableMembers.length > 0}
+                onCheckedChange={(checked) => {
+                  if (checked) selectAllMembers();
+                  else setSelectedMemberIds(new Set());
+                }}
+              />
+              <span className="text-xs font-medium text-muted-foreground">
+                {selectedMemberIds.size > 0 ? `Đã chọn ${selectedMemberIds.size} thành viên` : 'Chọn tất cả'}
+              </span>
+              
+              {selectedMemberIds.size > 0 && (
+                <>
+                  <div className="w-px h-5 bg-border mx-1" />
+                  {isGroupCreator && (
+                    <>
+                      <Select value={bulkRole} onValueChange={(v) => setBulkRole(v as 'member' | 'leader')}>
+                        <SelectTrigger className="w-28 h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover">
+                          <SelectItem value="member">Thành viên</SelectItem>
+                          <SelectItem value="leader">Phó nhóm</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setBulkMemberAction('role')} disabled={isBulkProcessing}>
+                        <Shield className="w-3 h-3" />
+                        Đổi vai trò
+                      </Button>
+                    </>
+                  )}
+                  <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={() => setBulkMemberAction('delete')} disabled={isBulkProcessing}>
+                    <Trash2 className="w-3 h-3" />
+                    Xóa
+                  </Button>
+                </>
+              )}
+              
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 ml-auto" onClick={clearMemberSelection}>
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
           <div className="space-y-3">
             {members.map((member) => (
               <div 
                 key={member.id} 
-                className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                className={`flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer ${selectedMemberIds.has(member.id) ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
                 onClick={() => {
+                  if (isMultiSelectMode && !isMemberGroupCreator(member.user_id) && member.user_id !== currentUserId) {
+                    toggleMemberSelect(member.id);
+                    return;
+                  }
                   if (member.profiles) {
                     setProfileToView(member.profiles as Profile);
                     setProfileViewRole(member.role as 'admin' | 'leader' | 'member');
@@ -435,8 +573,16 @@ export default function MemberManagementCard({
                   }
                 }}
               >
+                {isMultiSelectMode && !isMemberGroupCreator(member.user_id) && member.user_id !== currentUserId && (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedMemberIds.has(member.id)}
+                      onCheckedChange={() => toggleMemberSelect(member.id)}
+                    />
+                  </div>
+                )}
                 <UserAvatar 
-                  src={member.profiles?.avatar_url} 
+                  src={member.profiles?.avatar_url}
                   name={member.profiles?.full_name}
                   size="lg"
                   className="border-2 border-background"
@@ -738,6 +884,47 @@ export default function MemberManagementCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Delete Members Confirmation */}
+      <AlertDialog open={bulkMemberAction === 'delete'} onOpenChange={() => setBulkMemberAction(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa hàng loạt</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn xóa <span className="font-semibold">{selectedMemberIds.size} thành viên</span> khỏi project? Thao tác này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkProcessing}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDeleteMembers}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isBulkProcessing}
+            >
+              {isBulkProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : `Xóa ${selectedMemberIds.size} thành viên`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Change Role Confirmation */}
+      <AlertDialog open={bulkMemberAction === 'role'} onOpenChange={() => setBulkMemberAction(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Đổi vai trò hàng loạt</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn đổi vai trò <span className="font-semibold">{selectedMemberIds.size} thành viên</span> thành <span className="font-semibold">{bulkRole === 'leader' ? 'Phó nhóm' : 'Thành viên'}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkProcessing}>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkChangeRole} disabled={isBulkProcessing}>
+              {isBulkProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xác nhận'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Create New Member Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={(open) => { setIsCreateDialogOpen(open); if (!open) resetCreateForm(); }}>
         <DialogContent className="max-w-md">
