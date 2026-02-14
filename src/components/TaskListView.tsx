@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import UserAvatar from '@/components/UserAvatar';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +58,8 @@ import {
   Eye,
   EyeOff,
   Award,
+  CheckSquare,
+  X,
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
@@ -183,6 +186,9 @@ interface TaskRowProps {
   onToggleHidden?: (task: Task) => void;
   dragHandleProps?: any;
   isDragging?: boolean;
+  isMultiSelectMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (taskId: string) => void;
 }
 
 function TaskRow({
@@ -200,6 +206,9 @@ function TaskRow({
   onToggleHidden,
   dragHandleProps,
   isDragging,
+  isMultiSelectMode,
+  isSelected,
+  onToggleSelect,
 }: TaskRowProps) {
   // Handle extended deadline
   const taskWithExtended = task as Task & { extended_deadline?: string };
@@ -242,18 +251,20 @@ function TaskRow({
       return;
     }
 
-    // Some components use role="button" internally (Radix triggers, etc.)
-    // Ignore those, but allow the row itself (which also has role="button")
     const roleButtonEl = target.closest('[role="button"]') as HTMLElement | null;
     if (roleButtonEl && roleButtonEl !== rowEl) {
       return;
     }
 
-    // Leader or Assignee can submit/edit → open submission dialog
+    // In multi-select mode, toggle selection instead of opening dialog
+    if (isMultiSelectMode && onToggleSelect) {
+      onToggleSelect(task.id);
+      return;
+    }
+
     if (isLeaderInGroup || isAssignee) {
       openSubmissionDialog(task);
     } else {
-      // Non-assignee, non-leader → view-only mode
       openDetailDialog(task);
     }
   };
@@ -264,14 +275,17 @@ function TaskRow({
         hover:shadow-md hover:border-primary/40 hover:bg-accent/30
         ${taskIsOverdue ? 'border-destructive/40 bg-destructive/5 hover:bg-destructive/10' : 'border-border'}
         ${isDragging ? 'shadow-lg ring-2 ring-primary/30' : ''}
-        ${task.is_hidden ? 'opacity-50 border-dashed bg-muted/20' : ''}`}
+        ${task.is_hidden ? 'opacity-50 border-dashed bg-muted/20' : ''}
+        ${isSelected ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
       onClick={handleRowClick}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          if (isLeaderInGroup || isAssignee) {
+          if (isMultiSelectMode && onToggleSelect) {
+            onToggleSelect(task.id);
+          } else if (isLeaderInGroup || isAssignee) {
             openSubmissionDialog(task);
           } else {
             openDetailDialog(task);
@@ -279,11 +293,21 @@ function TaskRow({
         }
       }}
     >
-      {/* Responsive grid: desktop has fixed columns; mobile stacks meta/actions to avoid overlap */}
-      <div className="grid grid-cols-[32px_1fr] md:grid-cols-[32px_minmax(240px,1fr)_150px_96px_320px] gap-2 p-3 items-start md:items-center">
+      <div className={`grid ${isMultiSelectMode ? 'grid-cols-[28px_32px_1fr] md:grid-cols-[28px_32px_minmax(240px,1fr)_150px_96px_320px]' : 'grid-cols-[32px_1fr] md:grid-cols-[32px_minmax(240px,1fr)_150px_96px_320px]'} gap-2 p-3 items-start md:items-center`}>
+        {/* Multi-select checkbox */}
+        {isMultiSelectMode && (
+          <div className="flex items-center justify-center pt-0.5 md:pt-0" data-no-drill>
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect?.(task.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4.5 w-4.5"
+            />
+          </div>
+        )}
         {/* Column 1: Drag handle + Status bar */}
         <div className="flex flex-col items-center gap-1 pt-0.5 md:pt-0">
-          {isLeaderInGroup && dragHandleProps && (
+          {isLeaderInGroup && dragHandleProps && !isMultiSelectMode && (
             <div 
               {...dragHandleProps}
               className="cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded touch-none"
@@ -669,6 +693,13 @@ export default function TaskListView({
   const [showHidden, setShowHidden] = useState(false);
   const [taskFilters, setTaskFilters] = useState<TaskFiltersType>(defaultTaskFilters);
   
+  // Multi-select state
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<'delete' | 'status' | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<string>('TODO');
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  
   // Submission dialog state
   const [submissionTask, setSubmissionTask] = useState<Task | null>(null);
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(false);
@@ -851,6 +882,68 @@ export default function TaskListView({
     }
   };
 
+  // Multi-select helpers
+  const toggleTaskSelect = (taskId: string) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const selectAllVisibleTasks = () => {
+    setSelectedTaskIds(new Set(visibleTasks.map(t => t.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedTaskIds(new Set());
+    setIsMultiSelectMode(false);
+  };
+
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedTaskIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      for (const taskId of selectedTaskIds) {
+        await supabase.from('task_assignments').delete().eq('task_id', taskId);
+        await supabase.from('task_scores').delete().eq('task_id', taskId);
+        await supabase.from('submission_history').delete().eq('task_id', taskId);
+        await supabase.from('tasks').delete().eq('id', taskId);
+      }
+      toast({ title: 'Thành công', description: `Đã xóa ${selectedTaskIds.size} task` });
+      clearSelection();
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkAction(null);
+    }
+  };
+
+  // Bulk status change
+  const handleBulkStatusChange = async () => {
+    if (selectedTaskIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: bulkStatus as any })
+        .in('id', Array.from(selectedTaskIds));
+      if (error) throw error;
+      toast({ title: 'Thành công', description: `Đã cập nhật trạng thái ${selectedTaskIds.size} task` });
+      clearSelection();
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkAction(null);
+    }
+  };
+
   const openSubmissionDialog = (task: Task) => {
     setSubmissionTask(task);
     setIsSubmissionOpen(true);
@@ -990,7 +1083,26 @@ export default function TaskListView({
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Multi-select toggle for leaders */}
+          {isLeaderInGroup && (
+            <Button
+              variant={isMultiSelectMode ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => {
+                if (isMultiSelectMode) {
+                  clearSelection();
+                } else {
+                  setIsMultiSelectMode(true);
+                }
+              }}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{isMultiSelectMode ? 'Hủy chọn' : 'Chọn nhiều'}</span>
+            </Button>
+          )}
+
           {isLeaderInGroup && (hiddenTasksCount > 0 || hiddenStagesCount > 0) && (
             <Button
               variant={showHidden ? "secondary" : "outline"}
@@ -1025,6 +1137,51 @@ export default function TaskListView({
           </Select>
         </div>
       </div>
+
+      {/* Multi-select bulk action bar */}
+      {isMultiSelectMode && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 p-2.5 rounded-lg border bg-muted/50">
+          <Checkbox
+            checked={selectedTaskIds.size === visibleTasks.length && visibleTasks.length > 0}
+            onCheckedChange={(checked) => {
+              if (checked) selectAllVisibleTasks();
+              else setSelectedTaskIds(new Set());
+            }}
+          />
+          <span className="text-xs font-medium text-muted-foreground">
+            {selectedTaskIds.size > 0 ? `Đã chọn ${selectedTaskIds.size} task` : 'Chọn tất cả'}
+          </span>
+          
+          {selectedTaskIds.size > 0 && (
+            <>
+              <div className="w-px h-5 bg-border mx-1" />
+              <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                <SelectTrigger className="w-32 h-7 text-xs">
+                  <SelectValue placeholder="Trạng thái" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover">
+                  <SelectItem value="TODO">Chờ xử lý</SelectItem>
+                  <SelectItem value="IN_PROGRESS">Đang làm</SelectItem>
+                  <SelectItem value="DONE">Hoàn thành</SelectItem>
+                  <SelectItem value="VERIFIED">Đã duyệt</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setBulkAction('status')} disabled={isBulkProcessing}>
+                <CheckCircle2 className="w-3 h-3" />
+                Đổi trạng thái
+              </Button>
+              <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={() => setBulkAction('delete')} disabled={isBulkProcessing}>
+                <Trash2 className="w-3 h-3" />
+                Xóa
+              </Button>
+            </>
+          )}
+          
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 ml-auto" onClick={clearSelection}>
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
 
       {/* Task Filters */}
       <div className="mb-4">
@@ -1180,6 +1337,9 @@ export default function TaskListView({
                                       onToggleHidden={isLeaderInGroup ? handleToggleTaskHidden : undefined}
                                       dragHandleProps={provided.dragHandleProps}
                                       isDragging={snapshot.isDragging}
+                                      isMultiSelectMode={isMultiSelectMode}
+                                      isSelected={selectedTaskIds.has(task.id)}
+                                      onToggleSelect={toggleTaskSelect}
                                     />
                                   </div>
                                 )}
@@ -1253,6 +1413,9 @@ export default function TaskListView({
                                 onScoreTask={isLeaderInGroup ? openScoringDialog : undefined}
                                 dragHandleProps={provided.dragHandleProps}
                                 isDragging={snapshot.isDragging}
+                                isMultiSelectMode={isMultiSelectMode}
+                                isSelected={selectedTaskIds.has(task.id)}
+                                onToggleSelect={toggleTaskSelect}
                               />
                             </div>
                           )}
@@ -1294,6 +1457,46 @@ export default function TaskListView({
               disabled={isDeleting}
             >
               {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xóa'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={bulkAction === 'delete'} onOpenChange={() => setBulkAction(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa hàng loạt</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn xóa <span className="font-semibold">{selectedTaskIds.size} task</span> đã chọn? Thao tác này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkProcessing}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isBulkProcessing}
+            >
+              {isBulkProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : `Xóa ${selectedTaskIds.size} task`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Status Change Confirmation */}
+      <AlertDialog open={bulkAction === 'status'} onOpenChange={() => setBulkAction(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Đổi trạng thái hàng loạt</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn đổi trạng thái <span className="font-semibold">{selectedTaskIds.size} task</span> thành <span className="font-semibold">{getStatusLabel(bulkStatus, false)}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkProcessing}>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkStatusChange} disabled={isBulkProcessing}>
+              {isBulkProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xác nhận'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
