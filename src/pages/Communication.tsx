@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 interface Project {
   id: string;
   name: string;
+  image_url?: string | null;
   unread_mentions: number;
   last_message?: string;
   last_message_at?: string;
@@ -140,7 +141,7 @@ export default function Communication() {
       // Get groups user is member of
       const { data: memberships } = await supabase
         .from('group_members')
-        .select('group_id, groups(id, name)')
+        .select('group_id, groups(id, name, image_url)')
         .eq('user_id', user.id);
 
       if (!memberships) {
@@ -181,6 +182,7 @@ export default function Communication() {
           return {
             id: group.id,
             name: group.name,
+            image_url: group.image_url,
             unread_mentions: count || 0,
             last_message: lastMsg?.content?.substring(0, 60) + (lastMsg?.content?.length > 60 ? '...' : ''),
             last_message_at: lastMsg?.created_at,
@@ -759,14 +761,22 @@ export default function Communication() {
                     <div className="flex items-center gap-4">
                       {/* Project Avatar */}
                       <div className="relative">
-                        <div className={cn(
-                          "w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg transition-transform group-hover:scale-105",
-                          project.unread_mentions > 0 
-                            ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20" 
-                            : "bg-gradient-to-br from-muted to-muted/80 text-muted-foreground"
-                        )}>
-                          {project.name.charAt(0).toUpperCase()}
-                        </div>
+                        {project.image_url ? (
+                          <img 
+                            src={project.image_url} 
+                            alt={project.name}
+                            className="w-12 h-12 rounded-xl object-cover transition-transform group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className={cn(
+                            "w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg transition-transform group-hover:scale-105",
+                            project.unread_mentions > 0 
+                              ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20" 
+                              : "bg-gradient-to-br from-muted to-muted/80 text-muted-foreground"
+                          )}>
+                            {project.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         {project.unread_mentions > 0 && (
                           <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground ring-2 ring-card animate-pulse">
                             {project.unread_mentions}
@@ -839,9 +849,13 @@ export default function Communication() {
             >
               <ChevronLeft className="w-5 h-5" />
             </Button>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground font-bold shadow-lg shadow-primary/20">
-              {selectedProject.name.charAt(0).toUpperCase()}
-            </div>
+            {selectedProject.image_url ? (
+              <img src={selectedProject.image_url} alt={selectedProject.name} className="w-10 h-10 rounded-xl object-cover shadow-lg" />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground font-bold shadow-lg shadow-primary/20">
+                {selectedProject.name.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div>
               <h1 className="text-lg font-bold font-heading">{selectedProject.name}</h1>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
