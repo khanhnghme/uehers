@@ -2163,27 +2163,27 @@ export default function AdminBackupRestore() {
               </DialogTitle>
               {/* Page switcher */}
               {!isExporting && !isImporting && !exportReport && !importReport && (
-                <div className="flex gap-1 mt-3 bg-muted/50 p-1 rounded-lg">
+                <div className="flex gap-1 mt-3 bg-muted p-1.5 rounded-xl">
                   <button
                     onClick={() => setActivePage('backup')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg text-sm font-semibold transition-all ${
                       activePage === 'backup'
-                        ? 'bg-background shadow-sm text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-background shadow-md text-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
                     }`}
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-5 h-5" />
                     Sao lưu
                   </button>
                   <button
                     onClick={() => setActivePage('restore')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg text-sm font-semibold transition-all ${
                       activePage === 'restore'
-                        ? 'bg-background shadow-sm text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                        ? 'bg-background shadow-md text-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
                     }`}
                   >
-                    <Upload className="w-4 h-4" />
+                    <Upload className="w-5 h-5" />
                     Khôi phục
                   </button>
                 </div>
