@@ -1122,116 +1122,111 @@ export default function ProcessScores({
           </CardContent>
         </Card>
 
-        {/* Stage Scores - Compact List */}
+        {/* Stage Scores with nested Task Scores */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-primary" />
-              Điểm theo giai đoạn
+              Điểm theo giai đoạn & task
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {stages.sort((a, b) => a.order_index - b.order_index).map(stage => {
-              const stageScore = currentUserStageScores.find(ss => ss.stage_id === stage.id);
-              const weight = stageWeights.find(w => w.stage_id === stage.id)?.weight ?? 1;
-              const score = stageScore?.final_stage_score ?? 100;
-              const adjustment = stageScore?.adjustment ?? 0;
-
-              return (
-                <div 
-                  key={stage.id} 
-                  className={`flex items-center gap-3 p-3 rounded-lg border ${getScoreBgColor(score)}`}
-                >
-                  <Badge variant="outline" className="bg-background shrink-0">
-                    GĐ {stage.order_index + 1}
-                  </Badge>
-                  <span className="flex-1 font-medium truncate">{stage.name}</span>
-                  <Badge variant="secondary" className="text-xs shrink-0">x{weight}</Badge>
-                  {adjustment !== 0 && getAdjustmentBadge(adjustment)}
-                  <span className={`text-lg font-bold ${getScoreColor(score)}`}>
-                    {score.toFixed(1)}
-                  </span>
-                  {stageScore && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={() => setAppealDialog({
-                        isOpen: true,
-                        type: 'stage',
-                        scoreId: stageScore.id,
-                        currentScore: score,
-                        adjustment,
-                        adjustmentReason: stageScore.adjustment_reason,
-                      })}
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-            
-            {stages.length === 0 && (
+          <CardContent className="space-y-3">
+            {stages.length === 0 ? (
               <p className="text-center text-muted-foreground py-4">
                 Chưa có giai đoạn nào
               </p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Task Scores - Compact List */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Target className="w-4 h-4 text-primary" />
-              Điểm theo task
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {currentUserTaskScores.length === 0 ? (
-              <p className="text-center text-muted-foreground py-4">
-                Chưa có điểm task nào
-              </p>
             ) : (
-              currentUserTaskScores.map(taskScore => {
-                const task = tasks.find(t => t.id === taskScore.task_id);
-                const stage = stages.find(s => s.id === task?.stage_id);
-                const adjustment = taskScore.adjustment ?? 0;
-                const taskCode = task ? getTaskCode(task, task.stage_id) : null;
-                
+              [...stages].sort((a, b) => a.order_index - b.order_index).map((stage, stageIndex) => {
+                const stageScore = currentUserStageScores.find(ss => ss.stage_id === stage.id);
+                const weight = stageWeights.find(w => w.stage_id === stage.id)?.weight ?? 1;
+                const score = stageScore?.final_stage_score ?? 100;
+                const stageAdjustment = stageScore?.adjustment ?? 0;
+                const stageNumber = stageIndex + 1;
+
+                const stageTasks = tasks
+                  .filter(t => t.stage_id === stage.id)
+                  .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                const userStageTaskScores = currentUserTaskScores.filter(ts => {
+                  const task = tasks.find(t => t.id === ts.task_id);
+                  return task?.stage_id === stage.id;
+                });
+
                 return (
-                  <div 
-                    key={taskScore.id}
-                    className="flex items-center gap-2 p-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                  >
-                    {taskCode && (
-                      <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0.5 font-mono bg-primary/5 border-primary/20 text-primary">
-                        {taskCode}
+                  <div key={stage.id} className={`rounded-lg border overflow-hidden ${getScoreBgColor(score)}`}>
+                    {/* Stage header */}
+                    <div className="flex items-center gap-3 p-3">
+                      <Badge variant="outline" className="bg-background shrink-0">
+                        GĐ {stageNumber}
                       </Badge>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{task?.title || 'Task không xác định'}</p>
+                      <span className="flex-1 font-medium truncate">{stage.name}</span>
+                      <Badge variant="secondary" className="text-xs shrink-0">x{weight}</Badge>
+                      {stageAdjustment !== 0 && getAdjustmentBadge(stageAdjustment)}
+                      <span className={`text-lg font-bold ${getScoreColor(score)}`}>
+                        {score.toFixed(1)}
+                      </span>
+                      {stageScore && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => setAppealDialog({
+                            isOpen: true,
+                            type: 'stage',
+                            scoreId: stageScore.id,
+                            currentScore: score,
+                            adjustment: stageAdjustment,
+                            adjustmentReason: stageScore.adjustment_reason,
+                          })}
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                     </div>
-                    {adjustment !== 0 && getAdjustmentBadge(adjustment)}
-                    <span className={`font-bold ${getScoreColor(taskScore.final_score)}`}>
-                      {taskScore.final_score.toFixed(0)}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => setAppealDialog({
-                        isOpen: true,
-                        type: 'task',
-                        scoreId: taskScore.id,
-                        currentScore: taskScore.final_score,
-                        adjustment,
-                        adjustmentReason: taskScore.adjustment_reason,
-                      })}
-                    >
-                      <MessageSquare className="w-3 h-3" />
-                    </Button>
+
+                    {/* Nested task scores */}
+                    {userStageTaskScores.length > 0 && (
+                      <div className="border-t bg-background/60 px-3 py-2 space-y-1">
+                        {userStageTaskScores.map(taskScore => {
+                          const task = tasks.find(t => t.id === taskScore.task_id);
+                          const adjustment = taskScore.adjustment ?? 0;
+                          const taskIndex = stageTasks.findIndex(t => t.id === taskScore.task_id) + 1;
+                          const taskCode = `${stageNumber}.${taskIndex}`;
+
+                          return (
+                            <div
+                              key={taskScore.id}
+                              className="flex items-center gap-2 p-2 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                            >
+                              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0.5 font-mono bg-primary/5 border-primary/20 text-primary">
+                                {taskCode}
+                              </Badge>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{task?.title || 'Task không xác định'}</p>
+                              </div>
+                              {adjustment !== 0 && getAdjustmentBadge(adjustment)}
+                              <span className={`font-bold ${getScoreColor(taskScore.final_score)}`}>
+                                {taskScore.final_score.toFixed(0)}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => setAppealDialog({
+                                  isOpen: true,
+                                  type: 'task',
+                                  scoreId: taskScore.id,
+                                  currentScore: taskScore.final_score,
+                                  adjustment,
+                                  adjustmentReason: taskScore.adjustment_reason,
+                                })}
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })
