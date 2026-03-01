@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAdmin = roles.includes('admin');
   const isLeader = roles.includes('leader') || isAdmin;
-  const isApproved = true;
+  const isApproved = profile?.is_approved ?? false;
   const mustChangePassword = profile?.must_change_password ?? false;
 
   // Check if user is suspended
