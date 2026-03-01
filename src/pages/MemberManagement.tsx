@@ -42,7 +42,8 @@ import {
   Unlock,
   CheckSquare,
   XSquare,
-  X
+  X,
+  Check
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
 import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
@@ -56,6 +57,7 @@ export default function MemberManagement() {
   const { toast } = useToast();
   
   const [members, setMembers] = useState<Profile[]>([]);
+  const [pendingMembers, setPendingMembers] = useState<Profile[]>([]);
   const [memberRoles, setMemberRoles] = useState<Record<string, string[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -114,6 +116,7 @@ export default function MemberManagement() {
     }
     if (isAdmin) {
       fetchMembers();
+      fetchPendingMembers();
     }
   }, [authLoading, isAdmin, navigate]);
 
@@ -156,6 +159,70 @@ export default function MemberManagement() {
     }
     
     setIsLoading(false);
+  };
+
+  const fetchPendingMembers = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('is_approved', false)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setPendingMembers(data as Profile[]);
+    }
+  };
+
+  const handleApprovePending = async (member: Profile) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_approved: true })
+      .eq('id', member.id);
+
+    if (error) {
+      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    // Assign member role
+    await supabase.from('user_roles').upsert({
+      user_id: member.id,
+      role: 'member',
+    }, { onConflict: 'user_id,role' } as any);
+
+    await supabase.from('activity_logs').insert({
+      user_id: user!.id,
+      user_name: currentProfile?.full_name || user?.email || 'Unknown',
+      action: 'APPROVE_MEMBER_REGISTRATION',
+      action_type: 'member',
+      description: `Duyệt tài khoản đăng ký của ${member.full_name} (${member.student_id})`,
+    });
+
+    toast({ title: 'Đã duyệt', description: `Tài khoản ${member.full_name} đã được kích hoạt.` });
+    fetchPendingMembers();
+    fetchMembers();
+  };
+
+  const handleRejectPending = async (member: Profile) => {
+    const { data, error } = await supabase.functions.invoke('manage-users', {
+      body: { action: 'delete_user', user_id: member.id, requester_id: user?.id },
+    });
+
+    if (error || data?.error) {
+      toast({ title: 'Lỗi', description: data?.error || error?.message, variant: 'destructive' });
+      return;
+    }
+
+    await supabase.from('activity_logs').insert({
+      user_id: user!.id,
+      user_name: currentProfile?.full_name || user?.email || 'Unknown',
+      action: 'REJECT_MEMBER_REGISTRATION',
+      action_type: 'member',
+      description: `Từ chối và xóa tài khoản đăng ký của ${member.full_name} (${member.student_id})`,
+    });
+
+    toast({ title: 'Đã xóa', description: `Đã xóa tài khoản ${member.full_name} khỏi hệ thống.` });
+    fetchPendingMembers();
   };
 
   const handleCreateMember = async (e: React.FormEvent) => {
@@ -744,6 +811,54 @@ export default function MemberManagement() {
               <X className="w-4 h-4" />
             </Button>
           </div>
+        )}
+
+        {/* Pending Accounts */}
+        {pendingMembers.length > 0 && (
+          <Card className="border-amber-200 dark:border-amber-800">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-amber-600" />
+                Chờ duyệt ({pendingMembers.length})
+              </CardTitle>
+              <CardDescription>
+                Các tài khoản tự đăng ký đang chờ Admin phê duyệt
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {pendingMembers.map((member) => (
+                  <div key={member.id} className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50">
+                    <UserAvatar
+                      src={member.avatar_url}
+                      name={member.full_name}
+                      size="lg"
+                      className="border-2 border-background"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{member.full_name || '(Chưa có tên)'}</p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span>{member.student_id}</span>
+                        <span>•</span>
+                        <span className="truncate">{member.email}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Đăng ký: {new Date(member.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" onClick={() => handleApprovePending(member)}>
+                        <Check className="w-4 h-4 mr-1" /> Duyệt
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleRejectPending(member)}>
+                        <Trash2 className="w-4 h-4 mr-1" /> Xóa
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Members List */}
