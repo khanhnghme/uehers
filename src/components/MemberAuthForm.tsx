@@ -114,6 +114,7 @@ export function MemberAuthForm() {
     const studentId = identifier.trim();
     
     try {
+      // Step 1: Check if student ID exists in system
       const { data: email, error: lookupError } = await supabase
         .rpc('get_email_by_student_id', { _student_id: studentId });
 
@@ -124,11 +125,34 @@ export function MemberAuthForm() {
       }
 
       if (!email) {
+        // State 1: Account does NOT exist
         setIsLoading(false);
-        toast({ title: 'Tài khoản không tồn tại', description: 'MSSV này chưa có trong hệ thống. Bạn có thể tạo tài khoản mới.', variant: 'destructive' });
+        toast({
+          title: 'MSSV không tồn tại',
+          description: 'Mã số sinh viên này chưa được đăng ký trong hệ thống. Bạn có thể chuyển sang tab "Tạo tài khoản" để đăng ký.',
+          variant: 'destructive',
+        });
         return;
       }
 
+      // Step 2: Check approval status BEFORE sign in
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('is_approved')
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+      if (profileData && !profileData.is_approved) {
+        // State 2: Account exists but NOT approved
+        setIsLoading(false);
+        toast({
+          title: 'Tài khoản chờ duyệt',
+          description: 'Tài khoản của bạn đã được tạo nhưng đang chờ Admin xét duyệt. Vui lòng thử lại sau.',
+        });
+        return;
+      }
+
+      // State 3: Account exists and is approved → proceed to login
       const { error } = await signIn(email, password);
       setIsLoading(false);
 

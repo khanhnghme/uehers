@@ -814,18 +814,23 @@ export default function MemberManagement() {
         )}
 
         {/* Pending Accounts */}
-        {pendingMembers.length > 0 && (
-          <Card className="border-amber-200 dark:border-amber-800">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-amber-600" />
-                Chờ duyệt ({pendingMembers.length})
-              </CardTitle>
-              <CardDescription>
-                Các tài khoản tự đăng ký đang chờ Admin phê duyệt
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        <Card className={pendingMembers.length > 0 ? "border-amber-200 dark:border-amber-800" : ""}>
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-amber-600" />
+              Duyệt tài khoản ({pendingMembers.length})
+            </CardTitle>
+            <CardDescription>
+              Các tài khoản tự đăng ký đang chờ Admin phê duyệt
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {pendingMembers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <UserCheck className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">Không có tài khoản nào chờ duyệt</p>
+              </div>
+            ) : (
               <div className="space-y-3">
                 {pendingMembers.map((member) => (
                   <div key={member.id} className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50">
@@ -857,9 +862,9 @@ export default function MemberManagement() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </CardContent>
+        </Card>
 
         {/* Members List */}
         <Card>
