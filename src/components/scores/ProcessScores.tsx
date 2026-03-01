@@ -469,7 +469,7 @@ export default function ProcessScores({
     const avgTier = getScoreTier(avgScore);
 
     return (
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6">
         {/* Hero stat row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Card className={`${avgTier.bg} ${avgTier.border} border`}>
@@ -602,7 +602,7 @@ export default function ProcessScores({
     const sortedStages = [...stages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
     return (
-      <div className="space-y-4 animate-fade-in">
+      <div className="space-y-4">
         {sortedStages.length === 0 ? (
           <Card><CardContent className="text-center py-12"><p className="text-muted-foreground">Chưa có giai đoạn nào</p></CardContent></Card>
         ) : (
@@ -685,7 +685,7 @@ export default function ProcessScores({
   // LEADER: Appeals
   // ═══════════════════════════════════════════════
   const renderLeaderAppeals = () => (
-    <Card className="animate-fade-in">
+    <Card>
       <CardHeader>
         <CardTitle className="text-base">Phúc khảo</CardTitle>
         <CardDescription>Quản lý các yêu cầu phúc khảo từ thành viên</CardDescription>
@@ -742,7 +742,7 @@ export default function ProcessScores({
     const tier = getScoreTier(finalScore);
 
     return (
-      <div className="space-y-5 animate-fade-in">
+      <div className="space-y-5">
         {/* Hero card */}
         <Card className={`overflow-hidden ${tier.border} border`}>
           <div className={`bg-gradient-to-r ${tier.gradient} p-6`}>
@@ -900,7 +900,7 @@ export default function ProcessScores({
   // MEMBER: Appeals
   // ═══════════════════════════════════════════════
   const renderMemberAppealsView = () => (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
