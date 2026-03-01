@@ -342,145 +342,77 @@ export default function PersonalInfo() {
           </CardContent>
         </Card>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Thông tin học vấn */}
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 pb-4">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <GraduationCap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                Thông tin học vấn
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2">
-              <InfoItem icon={GraduationCap} label="Khóa" value={(profile as any)?.year_batch} />
-              <InfoItem icon={BookOpen} label="Ngành học" value={(profile as any)?.major} />
-            </CardContent>
-          </Card>
-
-          {/* Thông tin liên hệ */}
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 pb-4">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-emerald-500/10">
-                  <Phone className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                Thông tin liên hệ
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2">
-              <InfoItem icon={Mail} label="Email" value={profile?.email} />
-              <InfoItem icon={Phone} label="Số điện thoại" value={(profile as any)?.phone} />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Kỹ năng & Giới thiệu */}
-        <Card className="overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
+        {/* Unified Info Card */}
+        <Card>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-purple-500/10">
-                  <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                Kỹ năng & Giới thiệu
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="w-4 h-4 text-primary" />
+                Thông tin cá nhân
               </CardTitle>
               {!isEditing && (
                 <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                  <Edit3 className="w-4 h-4 mr-2" />
+                  <Edit3 className="w-4 h-4 mr-1.5" />
                   Chỉnh sửa
                 </Button>
               )}
             </div>
-            <CardDescription>Thông tin giúp Leader hiểu rõ hơn về bạn</CardDescription>
+            <CardDescription>Thông tin học vấn, liên hệ và giới thiệu bản thân</CardDescription>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent>
             {isEditing ? (
               <div className="space-y-5">
+                {/* Row 1: Academic */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="yearBatch" className="flex items-center gap-2 text-sm font-medium">
                       <GraduationCap className="w-4 h-4 text-muted-foreground" />
                       Khóa
                     </Label>
-                    <Input
-                      id="yearBatch"
-                      placeholder="VD: K47, K48..."
-                      value={yearBatch}
-                      onChange={(e) => setYearBatch(e.target.value)}
-                      className="h-11"
-                    />
+                    <Input id="yearBatch" placeholder="VD: K47, K48..." value={yearBatch} onChange={(e) => setYearBatch(e.target.value)} className="h-10" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="major" className="flex items-center gap-2 text-sm font-medium">
                       <BookOpen className="w-4 h-4 text-muted-foreground" />
                       Ngành học
                     </Label>
-                    <Input
-                      id="major"
-                      placeholder="VD: Quản trị kinh doanh..."
-                      value={major}
-                      onChange={(e) => setMajor(e.target.value)}
-                      className="h-11"
-                    />
+                    <Input id="major" placeholder="VD: Quản trị kinh doanh..." value={major} onChange={(e) => setMajor(e.target.value)} className="h-10" />
                   </div>
                 </div>
-                
+
+                {/* Row 2: Contact */}
                 <div className="space-y-2">
                   <Label htmlFor="phone" className="flex items-center gap-2 text-sm font-medium">
                     <Phone className="w-4 h-4 text-muted-foreground" />
                     Số điện thoại
                   </Label>
-                  <Input
-                    id="phone"
-                    placeholder="VD: 0901234567"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="h-11"
-                  />
+                  <Input id="phone" placeholder="VD: 0901234567" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-10" />
                 </div>
 
+                {/* Row 3: Skills */}
                 <div className="space-y-2">
                   <Label htmlFor="skills" className="flex items-center gap-2 text-sm font-medium">
                     <Sparkles className="w-4 h-4 text-muted-foreground" />
                     Kỹ năng / Thế mạnh
                   </Label>
-                  <Textarea
-                    id="skills"
-                    placeholder="VD: Thiết kế đồ họa, PowerPoint, Excel, Thuyết trình... (phân tách bằng dấu phẩy)"
-                    value={skills}
-                    onChange={(e) => setSkills(e.target.value)}
-                    rows={3}
-                    className="resize-none"
-                  />
+                  <Textarea id="skills" placeholder="VD: Thiết kế đồ họa, PowerPoint, Excel... (phân tách bằng dấu phẩy)" value={skills} onChange={(e) => setSkills(e.target.value)} rows={3} className="resize-none" />
                   <p className="text-xs text-muted-foreground">Nhập các kỹ năng, phân tách bằng dấu phẩy</p>
                 </div>
 
+                {/* Row 4: Bio */}
                 <div className="space-y-2">
                   <Label htmlFor="bio" className="flex items-center gap-2 text-sm font-medium">
                     <FileText className="w-4 h-4 text-muted-foreground" />
                     Giới thiệu bản thân
                   </Label>
-                  <Textarea
-                    id="bio"
-                    placeholder="Viết vài dòng giới thiệu về bản thân, sở thích, mục tiêu..."
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    rows={4}
-                    className="resize-none"
-                  />
+                  <Textarea id="bio" placeholder="Viết vài dòng giới thiệu về bản thân, sở thích, mục tiêu..." value={bio} onChange={(e) => setBio(e.target.value)} rows={4} className="resize-none" />
                 </div>
 
                 <Separator />
 
                 <div className="flex gap-3">
                   <Button onClick={handleSave} disabled={isSaving} className="flex-1 sm:flex-none">
-                    {isSaving ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4 mr-2" />
-                    )}
+                    {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                     Lưu thay đổi
                   </Button>
                   <Button variant="ghost" onClick={() => setIsEditing(false)} disabled={isSaving}>
@@ -490,48 +422,52 @@ export default function PersonalInfo() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* Skills Tags */}
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+              <div className="space-y-1">
+                {/* Info grid */}
+                <div className="grid sm:grid-cols-2 gap-x-6">
+                  <InfoItem icon={GraduationCap} label="Khóa" value={(profile as any)?.year_batch} />
+                  <InfoItem icon={BookOpen} label="Ngành học" value={(profile as any)?.major} />
+                  <InfoItem icon={Mail} label="Email" value={profile?.email} />
+                  <InfoItem icon={Phone} label="Số điện thoại" value={(profile as any)?.phone} />
+                </div>
+
+                <Separator className="my-2" />
+
+                {/* Skills */}
+                <div className="px-4 py-3">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2.5 flex items-center gap-2">
                     <Sparkles className="w-4 h-4" />
                     Kỹ năng & Thế mạnh
                   </h4>
                   {skillsList.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {skillsList.map((skill: string, idx: number) => (
-                        <Badge 
-                          key={idx} 
-                          variant="secondary" 
-                          className="px-3 py-1.5 text-sm bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 text-purple-700 dark:text-purple-300 border-0"
-                        >
+                        <Badge key={idx} variant="secondary" className="px-2.5 py-1 text-xs">
                           {skill}
                         </Badge>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-muted-foreground/60 italic flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4" />
-                      Chưa cập nhật kỹ năng
+                    <p className="text-muted-foreground/60 italic text-sm flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      Chưa cập nhật
                     </p>
                   )}
                 </div>
 
-                <Separator />
-
                 {/* Bio */}
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                <div className="px-4 py-3">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2.5 flex items-center gap-2">
                     <FileText className="w-4 h-4" />
                     Giới thiệu bản thân
                   </h4>
                   {(profile as any)?.bio ? (
-                    <p className="text-foreground leading-relaxed whitespace-pre-wrap bg-muted/30 rounded-xl p-4">
+                    <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap bg-muted/30 rounded-lg p-3">
                       {(profile as any).bio}
                     </p>
                   ) : (
-                    <p className="text-muted-foreground/60 italic flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4" />
+                    <p className="text-muted-foreground/60 italic text-sm flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5" />
                       Chưa có thông tin giới thiệu
                     </p>
                   )}
