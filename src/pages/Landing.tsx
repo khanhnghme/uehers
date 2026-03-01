@@ -800,23 +800,32 @@ export default function Landing() {
               </div>
 
               {/* Explore button */}
+              {/* Explore button — premium typographic style */}
               <div className="hidden lg:flex items-center justify-center" style={{ animation: 'fade-in 0.8s ease-out 0.2s both' }}>
-                <div className="relative flex flex-col items-center gap-8">
-                  <button onClick={openIntro}
-                    className="group relative overflow-hidden border-2 border-primary/30 hover:border-primary transition-all duration-500 px-12 py-6 cursor-pointer focus:outline-none bg-background">
-                    <span className="absolute inset-0 bg-primary translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
-                    <span className="relative z-10 flex flex-col items-center gap-3">
-                      <span className="text-[2rem] font-bold tracking-[0.15em] text-primary group-hover:text-primary-foreground transition-colors duration-500 uppercase">Khám phá</span>
-                      <span className="flex items-center gap-2 text-xs tracking-[0.2em] uppercase text-muted-foreground group-hover:text-primary-foreground/70 transition-colors duration-500">
-                        Tìm hiểu hệ thống <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-                      </span>
+                <div className="relative flex flex-col items-center gap-10">
+                  {/* Ambient glow */}
+                  <div className="absolute -inset-16 bg-primary/[0.03] rounded-full blur-3xl pointer-events-none" />
+                  
+                  <button onClick={openIntro} className="group relative cursor-pointer focus:outline-none">
+                    {/* Main text */}
+                    <span className="relative z-10 block text-[3rem] font-extrabold tracking-[0.2em] text-foreground/10 group-hover:text-primary transition-colors duration-700 uppercase select-none">
+                      Khám phá
                     </span>
-                    <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-accent group-hover:w-full transition-all duration-700 ease-out" />
+                    {/* Underline draw animation */}
+                    <span className="block h-[3px] bg-primary/20 group-hover:bg-primary transition-colors duration-500 mt-3 relative overflow-hidden">
+                      <span className="absolute inset-y-0 left-0 w-0 bg-primary group-hover:w-full transition-all duration-700 ease-out" />
+                    </span>
+                    {/* Subtitle */}
+                    <span className="block mt-4 text-xs tracking-[0.25em] uppercase text-muted-foreground/50 group-hover:text-muted-foreground group-hover:tracking-[0.35em] transition-all duration-500 text-center">
+                      Tìm hiểu hệ thống
+                      <ArrowRight className="w-3.5 h-3.5 inline ml-2 transition-transform duration-300 group-hover:translate-x-1.5" />
+                    </span>
                   </button>
-                  <div className="flex items-center gap-3 text-muted-foreground/40">
-                    <span className="w-12 h-px bg-current" />
-                    <span className="text-[10px] tracking-[0.3em] uppercase font-medium">ver 5.0</span>
-                    <span className="w-12 h-px bg-current" />
+
+                  <div className="flex items-center gap-3 text-muted-foreground/25">
+                    <span className="w-16 h-px bg-current" />
+                    <span className="text-[9px] tracking-[0.4em] uppercase font-medium">ver 5.0</span>
+                    <span className="w-16 h-px bg-current" />
                   </div>
                 </div>
               </div>
@@ -896,7 +905,9 @@ export default function Landing() {
             {/* Footer nav */}
             <div className="flex items-center justify-between px-6 py-3 border-t bg-muted/30 flex-shrink-0">
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <img src={uehLogo} alt="UEH" className="h-4 w-auto opacity-50" />
+                <div className="h-4 w-4 rounded-sm bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[8px] font-bold text-primary">U</span>
+                </div>
                 <span>Đồ án sinh viên · Phi thương mại</span>
               </div>
               <div className="flex items-center gap-2">
