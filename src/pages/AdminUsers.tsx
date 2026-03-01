@@ -329,6 +329,25 @@ export default function AdminUsers() {
     fetchProfiles();
   };
 
+  const handleDeletePendingUser = async (userId: string, fullName: string) => {
+    // Delete the user via edge function (removes auth + profile)
+    const { data, error } = await supabase.functions.invoke('manage-users', {
+      body: {
+        action: 'delete_user',
+        user_id: userId,
+        requester_id: user?.id,
+      }
+    });
+
+    if (error || data?.error) {
+      toast({ title: 'Lỗi xóa tài khoản', description: data?.error || error?.message, variant: 'destructive' });
+      return;
+    }
+
+    toast({ title: 'Đã xóa', description: `Đã xóa tài khoản ${fullName} khỏi hệ thống` });
+    fetchProfiles();
+  };
+
   const handleGrantLeader = async (userId: string) => {
     const { error } = await supabase.from('user_roles').upsert({ user_id: userId, role: 'leader' });
     if (error) {
@@ -761,8 +780,8 @@ export default function AdminUsers() {
                           <Button size="sm" onClick={() => handleApproveUser(u.id)}>
                             <Check className="w-4 h-4 mr-1" /> Duyệt
                           </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleRejectUser(u.id)}>
-                            <X className="w-4 h-4" />
+                          <Button size="sm" variant="destructive" onClick={() => handleDeletePendingUser(u.id, u.full_name)}>
+                            <X className="w-4 h-4 mr-1" /> Xóa
                           </Button>
                         </div>
                       </div>
