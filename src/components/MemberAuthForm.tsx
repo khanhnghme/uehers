@@ -206,11 +206,19 @@ export function MemberAuthForm() {
       }
 
       const { error } = await signUp(regEmail.trim(), regPassword, regStudentId.trim(), regFullName.trim());
-      setIsLoading(false);
 
       if (error) {
-        toast({ title: 'Đăng ký thất bại', description: error.message, variant: 'destructive' });
+        setIsLoading(false);
+        const msg = error.message?.toLowerCase() || '';
+        if (msg.includes('already registered') || msg.includes('already exists')) {
+          toast({ title: 'Email đã tồn tại', description: 'Email này đã được sử dụng. Vui lòng dùng email khác.', variant: 'destructive' });
+        } else {
+          toast({ title: 'Đăng ký thất bại', description: error.message, variant: 'destructive' });
+        }
       } else {
+        // Sign out immediately to prevent auto-login showing pending screen
+        await supabase.auth.signOut({ scope: 'local' });
+        setIsLoading(false);
         setRegisterSuccess(true);
         toast({ title: 'Đăng ký thành công', description: 'Tài khoản đang chờ Admin duyệt.' });
       }
