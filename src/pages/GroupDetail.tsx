@@ -35,6 +35,7 @@ import ProjectEvidenceExport from '@/components/ProjectEvidenceExport';
 import type { Group, GroupMember, Task, Profile, Stage } from '@/types/database';
 import { DeadlineHourPicker } from '@/components/DeadlineHourPicker';
 import { notifyTaskAssigned } from '@/lib/notifications';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 
 interface ExtendedGroup extends Group {
   class_code: string | null;
@@ -302,43 +303,47 @@ export default function GroupDetail() {
 
   const handleDeleteGroup = async () => {
     if (deleteConfirmText !== group?.name || !group) return;
-    setIsDeletingGroup(true);
-    try {
-      const taskIds = tasks.map(t => t.id);
-      if (taskIds.length > 0) {
-        await supabase.from('task_assignments').delete().in('task_id', taskIds);
-        await supabase.from('task_scores').delete().in('task_id', taskIds);
-        await supabase.from('submission_history').delete().in('task_id', taskIds);
-      }
-      await supabase.from('tasks').delete().eq('group_id', group.id);
-      const stageIds = stages.map(s => s.id);
-      if (stageIds.length > 0) await supabase.from('member_stage_scores').delete().in('stage_id', stageIds);
-      await supabase.from('stages').delete().eq('group_id', group.id);
-      await supabase.from('pending_approvals').delete().eq('group_id', group.id);
-      await supabase.from('group_members').delete().eq('group_id', group.id);
-      await supabase.from('activity_logs').delete().eq('group_id', group.id);
-      await supabase.from('groups').delete().eq('id', group.id);
-      toast({ title: 'Thành công', description: 'Đã xóa project' });
-      navigate('/groups');
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeletingGroup(false);
-    }
+    setIsDeleteGroupDialogOpen(false);
+    
+    deleteWithUndo({
+      description: `Đã xóa project "${group.name}"`,
+      onDelete: async () => {
+        const taskIds = tasks.map(t => t.id);
+        if (taskIds.length > 0) {
+          await supabase.from('task_assignments').delete().in('task_id', taskIds);
+          await supabase.from('task_scores').delete().in('task_id', taskIds);
+          await supabase.from('submission_history').delete().in('task_id', taskIds);
+        }
+        await supabase.from('tasks').delete().eq('group_id', group.id);
+        const stageIds = stages.map(s => s.id);
+        if (stageIds.length > 0) await supabase.from('member_stage_scores').delete().in('stage_id', stageIds);
+        await supabase.from('stages').delete().eq('group_id', group.id);
+        await supabase.from('pending_approvals').delete().eq('group_id', group.id);
+        await supabase.from('group_members').delete().eq('group_id', group.id);
+        await supabase.from('activity_logs').delete().eq('group_id', group.id);
+        await supabase.from('groups').delete().eq('id', group.id);
+        navigate('/groups');
+      },
+    });
   };
 
   const handleDeleteStage = async () => {
     if (!stageToDelete) return;
-    try {
-      await supabase.from('tasks').update({ stage_id: null }).eq('stage_id', stageToDelete.id);
-      await supabase.from('member_stage_scores').delete().eq('stage_id', stageToDelete.id);
-      await supabase.from('stages').delete().eq('id', stageToDelete.id);
-      toast({ title: 'Thành công', description: 'Đã xóa giai đoạn' });
-      setStageToDelete(null);
-      fetchGroupData();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    }
+    const stageRef = stageToDelete;
+    setStageToDelete(null);
+
+    deleteWithUndo({
+      description: `Đã xóa giai đoạn "${stageRef.name}"`,
+      onDelete: async () => {
+        await supabase.from('tasks').update({ stage_id: null }).eq('stage_id', stageRef.id);
+        await supabase.from('member_stage_scores').delete().eq('stage_id', stageRef.id);
+        await supabase.from('stages').delete().eq('id', stageRef.id);
+        fetchGroupData();
+      },
+      onUndo: () => {
+        fetchGroupData();
+      },
+    });
   };
 
   const availableProfiles = allProfiles.filter(p => !members.some(m => m.user_id === p.id));

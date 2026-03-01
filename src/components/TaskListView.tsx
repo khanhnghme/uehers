@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -844,42 +845,34 @@ export default function TaskListView({
 
   const handleDeleteTask = async () => {
     if (!taskToDelete) return;
-    setIsDeleting(true);
+    const taskRef = taskToDelete;
+    setTaskToDelete(null);
 
-    try {
-      await supabase.from('task_assignments').delete().eq('task_id', taskToDelete.id);
-      await supabase.from('task_scores').delete().eq('task_id', taskToDelete.id);
-      await supabase.from('submission_history').delete().eq('task_id', taskToDelete.id);
-      const { error } = await supabase.from('tasks').delete().eq('id', taskToDelete.id);
+    deleteWithUndo({
+      description: `Đã xóa task "${taskRef.title}"`,
+      onDelete: async () => {
+        await supabase.from('task_assignments').delete().eq('task_id', taskRef.id);
+        await supabase.from('task_scores').delete().eq('task_id', taskRef.id);
+        await supabase.from('submission_history').delete().eq('task_id', taskRef.id);
+        const { error } = await supabase.from('tasks').delete().eq('id', taskRef.id);
+        if (error) throw error;
 
-      if (error) throw error;
+        await supabase.from('activity_logs').insert({
+          user_id: user!.id,
+          user_name: user?.email || 'Unknown',
+          action: 'DELETE_TASK',
+          action_type: 'task',
+          description: `Xóa task "${taskRef.title}"`,
+          group_id: groupId,
+          metadata: { task_id: taskRef.id, task_title: taskRef.title }
+        });
 
-      await supabase.from('activity_logs').insert({
-        user_id: user!.id,
-        user_name: user?.email || 'Unknown',
-        action: 'DELETE_TASK',
-        action_type: 'task',
-        description: `Xóa task "${taskToDelete.title}"`,
-        group_id: groupId,
-        metadata: { task_id: taskToDelete.id, task_title: taskToDelete.title }
-      });
-
-      toast({
-        title: 'Đã xóa task',
-        description: `Task "${taskToDelete.title}" đã được xóa`,
-      });
-      setTaskToDelete(null);
-      onRefresh();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Không thể xóa task';
-      toast({
-        title: 'Lỗi',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+        onRefresh();
+      },
+      onUndo: () => {
+        onRefresh();
+      },
+    });
   };
 
   // Multi-select helpers
@@ -904,23 +897,26 @@ export default function TaskListView({
   // Bulk delete
   const handleBulkDelete = async () => {
     if (selectedTaskIds.size === 0) return;
-    setIsBulkProcessing(true);
-    try {
-      for (const taskId of selectedTaskIds) {
-        await supabase.from('task_assignments').delete().eq('task_id', taskId);
-        await supabase.from('task_scores').delete().eq('task_id', taskId);
-        await supabase.from('submission_history').delete().eq('task_id', taskId);
-        await supabase.from('tasks').delete().eq('id', taskId);
-      }
-      toast({ title: 'Thành công', description: `Đã xóa ${selectedTaskIds.size} task` });
-      clearSelection();
-      onRefresh();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsBulkProcessing(false);
-      setBulkAction(null);
-    }
+    const idsToDelete = new Set(selectedTaskIds);
+    const count = idsToDelete.size;
+    clearSelection();
+    setBulkAction(null);
+
+    deleteWithUndo({
+      description: `Đã xóa ${count} task`,
+      onDelete: async () => {
+        for (const taskId of idsToDelete) {
+          await supabase.from('task_assignments').delete().eq('task_id', taskId);
+          await supabase.from('task_scores').delete().eq('task_id', taskId);
+          await supabase.from('submission_history').delete().eq('task_id', taskId);
+          await supabase.from('tasks').delete().eq('id', taskId);
+        }
+        onRefresh();
+      },
+      onUndo: () => {
+        onRefresh();
+      },
+    });
   };
 
   // Bulk status change

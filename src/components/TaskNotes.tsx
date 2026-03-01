@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -325,46 +326,46 @@ export default function TaskNotes({ taskId, className = '', compact = false }: T
 
   const handleDeleteVersion = async () => {
     if (!noteToDelete) return;
+    const noteIdRef = noteToDelete;
+    setShowDeleteDialog(false);
+    setNoteToDelete(null);
 
-    try {
-      // Delete attachments from storage first
-      const attachmentsToDelete = allAttachments.filter(a => a.note_id === noteToDelete);
-      for (const attachment of attachmentsToDelete) {
-        await supabase.storage
-          .from('task-note-attachments')
-          .remove([attachment.file_path]);
+    const deletedNote = notes.find(n => n.id === noteIdRef);
+    const deletedAttachments = allAttachments.filter(a => a.note_id === noteIdRef);
+
+    // Optimistic UI update
+    const remainingNotes = notes.filter(n => n.id !== noteIdRef);
+    setNotes(remainingNotes);
+    setAllAttachments(prev => prev.filter(a => a.note_id !== noteIdRef));
+    if (selectedNoteId === noteIdRef) {
+      if (remainingNotes.length > 0) {
+        setSelectedNoteId(remainingNotes[0].id);
+        setContent(remainingNotes[0].content || '');
+        resetSavedData(remainingNotes[0].content || '');
+      } else {
+        setSelectedNoteId(null);
+        setContent('');
+        resetSavedData('');
       }
-
-      const { error } = await supabase
-        .from('task_notes')
-        .delete()
-        .eq('id', noteToDelete);
-
-      if (error) throw error;
-
-      const remainingNotes = notes.filter(n => n.id !== noteToDelete);
-      setNotes(remainingNotes);
-      setAllAttachments(prev => prev.filter(a => a.note_id !== noteToDelete));
-      
-      if (selectedNoteId === noteToDelete) {
-        if (remainingNotes.length > 0) {
-          setSelectedNoteId(remainingNotes[0].id);
-          setContent(remainingNotes[0].content || '');
-          resetSavedData(remainingNotes[0].content || '');
-        } else {
-          setSelectedNoteId(null);
-          setContent('');
-          resetSavedData('');
-        }
-      }
-      
-      toast({ title: 'Đã xóa phiên bản' });
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setShowDeleteDialog(false);
-      setNoteToDelete(null);
     }
+
+    deleteWithUndo({
+      description: `Đã xóa phiên bản "${deletedNote?.version_name || ''}"`,
+      onDelete: async () => {
+        for (const attachment of deletedAttachments) {
+          await supabase.storage.from('task-note-attachments').remove([attachment.file_path]);
+        }
+        const { error } = await supabase.from('task_notes').delete().eq('id', noteIdRef);
+        if (error) throw error;
+      },
+      onUndo: () => {
+        // Restore from DB
+        if (deletedNote) {
+          setNotes(prev => [...prev, deletedNote].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+          setAllAttachments(prev => [...prev, ...deletedAttachments]);
+        }
+      },
+    });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -422,23 +423,21 @@ export default function TaskNotes({ taskId, className = '', compact = false }: T
   };
 
   const handleDeleteAttachment = async (attachment: NoteAttachment) => {
-    try {
-      await supabase.storage
-        .from('task-note-attachments')
-        .remove([attachment.file_path]);
+    const savedAttachment = attachment;
+    setAttachments(prev => prev.filter(a => a.id !== attachment.id));
+    setAllAttachments(prev => prev.filter(a => a.id !== attachment.id));
 
-      await supabase
-        .from('task_note_attachments')
-        .delete()
-        .eq('id', attachment.id);
-
-      setAttachments(prev => prev.filter(a => a.id !== attachment.id));
-      setAllAttachments(prev => prev.filter(a => a.id !== attachment.id));
-      
-      toast({ title: 'Đã xóa file' });
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    }
+    deleteWithUndo({
+      description: `Đã xóa file "${attachment.file_name}"`,
+      onDelete: async () => {
+        await supabase.storage.from('task-note-attachments').remove([attachment.file_path]);
+        await supabase.from('task_note_attachments').delete().eq('id', attachment.id);
+      },
+      onUndo: () => {
+        setAttachments(prev => [...prev, savedAttachment]);
+        setAllAttachments(prev => [...prev, savedAttachment]);
+      },
+    });
   };
 
   const handleDownloadAttachment = async (attachment: NoteAttachment) => {

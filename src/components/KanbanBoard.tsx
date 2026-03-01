@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -163,50 +164,23 @@ export default function KanbanBoard({
 
   const handleDeleteTask = async () => {
     if (!taskToDelete) return;
-    setIsDeleting(true);
+    const taskRef = taskToDelete;
+    setTaskToDelete(null);
 
-    try {
-      // Delete task assignments first
-      await supabase
-        .from('task_assignments')
-        .delete()
-        .eq('task_id', taskToDelete.id);
-
-      // Delete task scores
-      await supabase
-        .from('task_scores')
-        .delete()
-        .eq('task_id', taskToDelete.id);
-
-      // Delete submission history
-      await supabase
-        .from('submission_history')
-        .delete()
-        .eq('task_id', taskToDelete.id);
-
-      // Finally delete the task
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', taskToDelete.id);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Đã xóa task',
-        description: `Task "${taskToDelete.title}" đã được xóa`,
-      });
-      setTaskToDelete(null);
-      onRefresh();
-    } catch (error: any) {
-      toast({
-        title: 'Lỗi',
-        description: error.message || 'Không thể xóa task',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+    deleteWithUndo({
+      description: `Đã xóa task "${taskRef.title}"`,
+      onDelete: async () => {
+        await supabase.from('task_assignments').delete().eq('task_id', taskRef.id);
+        await supabase.from('task_scores').delete().eq('task_id', taskRef.id);
+        await supabase.from('submission_history').delete().eq('task_id', taskRef.id);
+        const { error } = await supabase.from('tasks').delete().eq('id', taskRef.id);
+        if (error) throw error;
+        onRefresh();
+      },
+      onUndo: () => {
+        onRefresh();
+      },
+    });
   };
 
   const TaskCard = ({ task, index }: { task: Task; index: number }) => {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { useNavigate } from 'react-router-dom';
 import { useFilePreview } from '@/contexts/FilePreviewContext';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -229,31 +230,29 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
   // Batch delete
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
-    setIsBatchProcessing(true);
-    try {
-      const toDelete = resources.filter(r => selectedIds.has(r.id));
-      // Delete storage files
-      const storageFiles = toDelete
-        .filter(r => r.resource_type === 'file' && r.storage_name)
-        .map(r => r.storage_name!);
-      if (storageFiles.length > 0) {
-        await supabase.storage.from('project-resources').remove(storageFiles);
-      }
-      // Delete DB records
-      const { error } = await supabase
-        .from('project_resources')
-        .delete()
-        .in('id', Array.from(selectedIds));
-      if (error) throw error;
-      toast({ title: 'Thành công', description: `Đã xóa ${selectedIds.size} tài nguyên` });
-      clearSelection();
-      setBatchDeleteDialogOpen(false);
-      fetchResources();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsBatchProcessing(false);
-    }
+    const idsToDelete = new Set(selectedIds);
+    const count = idsToDelete.size;
+    const toDelete = resources.filter(r => idsToDelete.has(r.id));
+    clearSelection();
+    setBatchDeleteDialogOpen(false);
+
+    deleteWithUndo({
+      description: `Đã xóa ${count} tài nguyên`,
+      onDelete: async () => {
+        const storageFiles = toDelete
+          .filter(r => r.resource_type === 'file' && r.storage_name)
+          .map(r => r.storage_name!);
+        if (storageFiles.length > 0) {
+          await supabase.storage.from('project-resources').remove(storageFiles);
+        }
+        const { error } = await supabase.from('project_resources').delete().in('id', Array.from(idsToDelete));
+        if (error) throw error;
+        fetchResources();
+      },
+      onUndo: () => {
+        fetchResources();
+      },
+    });
   };
 
   // Batch move
@@ -360,38 +359,43 @@ export default function ProjectResources({ groupId, isLeader }: ProjectResources
 
   const handleDeleteFolder = async () => {
     if (!deleteFolder) return;
-    setIsDeleting(true);
-    try {
-      await (supabase.from('project_resources').update({ folder_id: null } as any).eq('folder_id', deleteFolder.id) as any);
-      await (supabase.from('resource_folders' as any).delete().eq('id', deleteFolder.id) as any);
-      toast({ title: 'Thành công', description: 'Đã xóa thư mục (các file được chuyển về gốc)' });
-      setDeleteFolder(null);
-      fetchFolders();
-      fetchResources();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeleting(false);
-    }
+    const folderRef = deleteFolder;
+    setDeleteFolder(null);
+
+    deleteWithUndo({
+      description: `Đã xóa thư mục "${folderRef.name}" (các file được chuyển về gốc)`,
+      onDelete: async () => {
+        await (supabase.from('project_resources').update({ folder_id: null } as any).eq('folder_id', folderRef.id) as any);
+        await (supabase.from('resource_folders' as any).delete().eq('id', folderRef.id) as any);
+        fetchFolders();
+        fetchResources();
+      },
+      onUndo: () => {
+        fetchFolders();
+        fetchResources();
+      },
+    });
   };
 
   const handleDelete = async () => {
     if (!deleteResource) return;
-    setIsDeleting(true);
-    try {
-      if (deleteResource.resource_type === 'file' && deleteResource.storage_name) {
-        await supabase.storage.from('project-resources').remove([deleteResource.storage_name]);
-      }
-      const { error: dbError } = await supabase.from('project_resources').delete().eq('id', deleteResource.id);
-      if (dbError) throw dbError;
-      toast({ title: 'Thành công', description: 'Đã xóa tài nguyên' });
-      setDeleteResource(null);
-      fetchResources();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeleting(false);
-    }
+    const resourceRef = deleteResource;
+    setDeleteResource(null);
+
+    deleteWithUndo({
+      description: `Đã xóa tài nguyên "${resourceRef.name}"`,
+      onDelete: async () => {
+        if (resourceRef.resource_type === 'file' && resourceRef.storage_name) {
+          await supabase.storage.from('project-resources').remove([resourceRef.storage_name]);
+        }
+        const { error: dbError } = await supabase.from('project_resources').delete().eq('id', resourceRef.id);
+        if (dbError) throw dbError;
+        fetchResources();
+      },
+      onUndo: () => {
+        fetchResources();
+      },
+    });
   };
 
   const handleRenameFile = async () => {

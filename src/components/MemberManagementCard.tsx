@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -353,40 +354,37 @@ export default function MemberManagementCard({
 
   const handleDeleteMember = async () => {
     if (!memberToDelete) return;
-    setIsDeleting(true);
+    const memberRef = memberToDelete;
+    setMemberToDelete(null);
 
-    try {
-      // Remove from task assignments first
-      const { data: tasksData } = await supabase.from('tasks').select('id').eq('group_id', groupId);
-      if (tasksData && tasksData.length > 0) {
-        await supabase.from('task_assignments').delete()
-          .eq('user_id', memberToDelete.user_id)
-          .in('task_id', tasksData.map(t => t.id));
-      }
+    deleteWithUndo({
+      description: `Đã xóa ${memberRef.profiles?.full_name} khỏi project`,
+      onDelete: async () => {
+        const { data: tasksData } = await supabase.from('tasks').select('id').eq('group_id', groupId);
+        if (tasksData && tasksData.length > 0) {
+          await supabase.from('task_assignments').delete()
+            .eq('user_id', memberRef.user_id)
+            .in('task_id', tasksData.map(t => t.id));
+        }
+        const { error } = await supabase.from('group_members').delete().eq('id', memberRef.id);
+        if (error) throw error;
 
-      // Remove from group
-      const { error } = await supabase.from('group_members').delete().eq('id', memberToDelete.id);
-      if (error) throw error;
+        await supabase.from('activity_logs').insert({
+          user_id: user!.id,
+          user_name: profile?.full_name || user?.email || 'Unknown',
+          action: 'REMOVE_MEMBER_FROM_PROJECT',
+          action_type: 'member',
+          description: `Xóa ${memberRef.profiles?.full_name} khỏi project`,
+          group_id: groupId,
+          metadata: { removed_user_id: memberRef.user_id, removed_user_name: memberRef.profiles?.full_name }
+        });
 
-      // Log activity
-      await supabase.from('activity_logs').insert({
-        user_id: user!.id,
-        user_name: profile?.full_name || user?.email || 'Unknown',
-        action: 'REMOVE_MEMBER_FROM_PROJECT',
-        action_type: 'member',
-        description: `Xóa ${memberToDelete.profiles?.full_name} khỏi project`,
-        group_id: groupId,
-        metadata: { removed_user_id: memberToDelete.user_id, removed_user_name: memberToDelete.profiles?.full_name }
-      });
-
-      toast({ title: 'Đã xóa', description: `${memberToDelete.profiles?.full_name} đã bị xóa khỏi project` });
-      setMemberToDelete(null);
-      onRefresh();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsDeleting(false);
-    }
+        onRefresh();
+      },
+      onUndo: () => {
+        onRefresh();
+      },
+    });
   };
 
   const openChangeRoleDialog = (member: GroupMember) => {
@@ -418,27 +416,29 @@ export default function MemberManagementCard({
   // Bulk delete members
   const handleBulkDeleteMembers = async () => {
     if (selectedMemberIds.size === 0) return;
-    setIsBulkProcessing(true);
-    try {
-      const selectedMembers = members.filter(m => selectedMemberIds.has(m.id));
-      for (const member of selectedMembers) {
-        const { data: tasksData } = await supabase.from('tasks').select('id').eq('group_id', groupId);
-        if (tasksData && tasksData.length > 0) {
-          await supabase.from('task_assignments').delete()
-            .eq('user_id', member.user_id)
-            .in('task_id', tasksData.map(t => t.id));
+    const selectedMembers = members.filter(m => selectedMemberIds.has(m.id));
+    const count = selectedMembers.length;
+    clearMemberSelection();
+    setBulkMemberAction(null);
+
+    deleteWithUndo({
+      description: `Đã xóa ${count} thành viên khỏi project`,
+      onDelete: async () => {
+        for (const member of selectedMembers) {
+          const { data: tasksData } = await supabase.from('tasks').select('id').eq('group_id', groupId);
+          if (tasksData && tasksData.length > 0) {
+            await supabase.from('task_assignments').delete()
+              .eq('user_id', member.user_id)
+              .in('task_id', tasksData.map(t => t.id));
+          }
+          await supabase.from('group_members').delete().eq('id', member.id);
         }
-        await supabase.from('group_members').delete().eq('id', member.id);
-      }
-      toast({ title: 'Thành công', description: `Đã xóa ${selectedMemberIds.size} thành viên khỏi project` });
-      clearMemberSelection();
-      onRefresh();
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsBulkProcessing(false);
-      setBulkMemberAction(null);
-    }
+        onRefresh();
+      },
+      onUndo: () => {
+        onRefresh();
+      },
+    });
   };
 
   // Bulk change role

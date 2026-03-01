@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -81,22 +82,23 @@ export default function SystemErrorLogs() {
   };
 
   const handleClearAll = async () => {
-    setIsClearing(true);
-    try {
-      const { error } = await (supabase as any)
-        .from('system_error_logs')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // delete all
+    const savedLogs = [...logs];
+    setLogs([]);
+    setShowClearConfirm(false);
 
-      if (error) throw error;
-      setLogs([]);
-      toast({ title: 'Đã xóa', description: 'Toàn bộ log lỗi đã được xóa' });
-    } catch (error: any) {
-      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
-    } finally {
-      setIsClearing(false);
-      setShowClearConfirm(false);
-    }
+    deleteWithUndo({
+      description: 'Đã xóa toàn bộ log lỗi',
+      onDelete: async () => {
+        const { error } = await (supabase as any)
+          .from('system_error_logs')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+        if (error) throw error;
+      },
+      onUndo: () => {
+        setLogs(savedLogs);
+      },
+    });
   };
 
   const getErrorTypeConfig = (type: string) => {

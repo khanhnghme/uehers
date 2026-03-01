@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -292,69 +293,47 @@ export default function FeedbackPage() {
 
   const handleDeleteFeedback = async () => {
     if (!feedbackToDelete) return;
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase
-        .from('feedbacks')
-        .delete()
-        .eq('id', feedbackToDelete.id);
+    const feedbackRef = feedbackToDelete;
+    setFeedbackToDelete(null);
 
-      if (error) throw error;
-
-      toast({
-        title: 'Đã xóa',
-        description: 'Góp ý đã được xóa',
-      });
-
-      setFeedbackToDelete(null);
-      fetchFeedbacks();
-    } catch (error: any) {
-      toast({
-        title: 'Lỗi',
-        description: error.message || 'Không thể xóa góp ý',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+    deleteWithUndo({
+      description: `Đã xóa góp ý "${feedbackRef.title}"`,
+      onDelete: async () => {
+        const { error } = await supabase.from('feedbacks').delete().eq('id', feedbackRef.id);
+        if (error) throw error;
+        fetchFeedbacks();
+      },
+      onUndo: () => {
+        fetchFeedbacks();
+      },
+    });
   };
 
   const handleDeleteComment = async () => {
     if (!commentToDelete) return;
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase
-        .from('feedback_comments')
-        .delete()
-        .eq('id', commentToDelete.id);
+    const commentRef = commentToDelete;
+    setCommentToDelete(null);
 
-      if (error) throw error;
-
-      toast({
-        title: 'Đã xóa',
-        description: 'Bình luận đã được xóa',
-      });
-
-      setCommentToDelete(null);
-      if (expandedFeedback) {
-        fetchComments(expandedFeedback);
-        setFeedbacks(prev =>
-          prev.map(f =>
-            f.id === expandedFeedback
-              ? { ...f, comment_count: Math.max(0, (f.comment_count || 0) - 1) }
-              : f
-          )
-        );
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Lỗi',
-        description: error.message || 'Không thể xóa bình luận',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+    deleteWithUndo({
+      description: 'Đã xóa bình luận',
+      onDelete: async () => {
+        const { error } = await supabase.from('feedback_comments').delete().eq('id', commentRef.id);
+        if (error) throw error;
+        if (expandedFeedback) {
+          fetchComments(expandedFeedback);
+          setFeedbacks(prev =>
+            prev.map(f =>
+              f.id === expandedFeedback
+                ? { ...f, comment_count: Math.max(0, (f.comment_count || 0) - 1) }
+                : f
+            )
+          );
+        }
+      },
+      onUndo: () => {
+        if (expandedFeedback) fetchComments(expandedFeedback);
+      },
+    });
   };
 
   const handleToggleHideFeedback = async (feedback: Feedback) => {

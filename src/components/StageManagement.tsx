@@ -30,6 +30,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from 'lucide-react';
 import type { Stage } from '@/types/database';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 
 interface StageManagementProps {
   stage: Stage;
@@ -83,43 +84,22 @@ export default function StageManagement({ stage, taskCount, onUpdate }: StageMan
   };
 
   const handleDelete = async () => {
-    setIsProcessing(true);
+    setIsDeleteDialogOpen(false);
 
-    try {
-      // First, unassign all tasks from this stage (set stage_id to null)
-      const { error: taskError } = await supabase
-        .from('tasks')
-        .update({ stage_id: null })
-        .eq('stage_id', stage.id);
-
-      if (taskError) throw taskError;
-
-      // Then delete the stage
-      const { error: stageError } = await supabase
-        .from('stages')
-        .delete()
-        .eq('id', stage.id);
-
-      if (stageError) throw stageError;
-
-      toast({
-        title: 'Thành công',
-        description: taskCount > 0 
-          ? `Đã xóa giai đoạn. ${taskCount} task đã được chuyển sang "Chưa phân giai đoạn"`
-          : 'Đã xóa giai đoạn',
-      });
-
-      setIsDeleteDialogOpen(false);
-      onUpdate();
-    } catch (error: any) {
-      toast({
-        title: 'Lỗi',
-        description: error.message || 'Không thể xóa giai đoạn',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    deleteWithUndo({
+      description: taskCount > 0
+        ? `Đã xóa giai đoạn "${stage.name}". ${taskCount} task chuyển sang "Chưa phân giai đoạn"`
+        : `Đã xóa giai đoạn "${stage.name}"`,
+      onDelete: async () => {
+        await supabase.from('tasks').update({ stage_id: null }).eq('stage_id', stage.id);
+        const { error } = await supabase.from('stages').delete().eq('id', stage.id);
+        if (error) throw error;
+        onUpdate();
+      },
+      onUndo: () => {
+        onUpdate();
+      },
+    });
   };
 
   return (

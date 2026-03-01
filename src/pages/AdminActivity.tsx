@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -156,41 +157,36 @@ export default function AdminActivity() {
       return;
     }
 
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase
-        .from('activity_logs')
-        .delete()
-        .gte('created_at', `${startDate}T00:00:00`)
-        .lte('created_at', `${endDate}T23:59:59`);
-
-      if (error) throw error;
-
-      toast.success('Đã xóa nhật ký trong khoảng thời gian đã chọn');
-      fetchLogs();
-    } catch (error) {
-      console.error('Error deleting logs:', error);
-      toast.error('Không thể xóa nhật ký');
-    } finally {
-      setIsDeleting(false);
-    }
+    deleteWithUndo({
+      description: `Đã xóa nhật ký từ ${startDate} đến ${endDate}`,
+      onDelete: async () => {
+        const { error } = await supabase
+          .from('activity_logs')
+          .delete()
+          .gte('created_at', `${startDate}T00:00:00`)
+          .lte('created_at', `${endDate}T23:59:59`);
+        if (error) throw error;
+        fetchLogs();
+      },
+      onUndo: () => {
+        fetchLogs();
+      },
+    });
   };
 
   const handleDeleteSingleLog = async (logId: string) => {
-    try {
-      const { error } = await supabase
-        .from('activity_logs')
-        .delete()
-        .eq('id', logId);
+    setLogs(logs.filter(log => log.id !== logId));
 
-      if (error) throw error;
-
-      setLogs(logs.filter(log => log.id !== logId));
-      toast.success('Đã xóa nhật ký');
-    } catch (error) {
-      console.error('Error deleting log:', error);
-      toast.error('Không thể xóa nhật ký');
-    }
+    deleteWithUndo({
+      description: 'Đã xóa nhật ký',
+      onDelete: async () => {
+        const { error } = await supabase.from('activity_logs').delete().eq('id', logId);
+        if (error) throw error;
+      },
+      onUndo: () => {
+        fetchLogs();
+      },
+    });
   };
 
   // Log current user activity for demo
