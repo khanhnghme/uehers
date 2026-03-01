@@ -40,7 +40,8 @@ import {
   Lock,
   Unlock,
   CheckSquare,
-  XSquare
+  XSquare,
+  X
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
 import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
@@ -67,6 +68,7 @@ export default function MemberManagement() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkAction, setBulkAction] = useState<'delete' | 'suspend' | 'unsuspend' | null>(null);
+  const [isSelectMode, setIsSelectMode] = useState(false);
   
   // Form state - New member
   const [newEmail, setNewEmail] = useState('');
@@ -455,7 +457,7 @@ export default function MemberManagement() {
     }
   };
 
-  const clearSelection = () => setSelectedIds(new Set());
+  const clearSelection = () => { setSelectedIds(new Set()); setIsSelectMode(false); };
 
   // ====== BULK ACTIONS ======
   const handleBulkSuspend = async () => {
@@ -703,30 +705,31 @@ export default function MemberManagement() {
         </div>
 
         {/* Bulk Action Bar */}
-        {someSelected && (
-          <div className="sticky top-0 z-10 flex items-center gap-3 p-3 rounded-xl bg-primary/10 border border-primary/20 animate-in fade-in slide-in-from-top-2">
+        {isSelectMode && (
+          <div className="sticky top-0 z-10 flex items-center gap-2 sm:gap-3 p-2.5 rounded-xl bg-primary/10 border border-primary/20 animate-in fade-in slide-in-from-top-2">
             <Checkbox
               checked={allSelectableSelected}
               onCheckedChange={toggleSelectAll}
+              className="shrink-0"
             />
-            <span className="text-sm font-medium">
-              Đã chọn {selectedIds.size} thành viên
+            <span className="text-sm font-medium whitespace-nowrap">
+              {selectedIds.size > 0 ? `Đã chọn ${selectedIds.size}` : 'Chọn thành viên'}
             </span>
             <div className="flex-1" />
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkAction('suspend')}>
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs sm:text-sm" onClick={() => setBulkAction('suspend')} disabled={selectedIds.size === 0}>
               <Lock className="w-3.5 h-3.5" />
-              Khóa
+              <span className="hidden sm:inline">Khóa</span>
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkAction('unsuspend')}>
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs sm:text-sm" onClick={() => setBulkAction('unsuspend')} disabled={selectedIds.size === 0}>
               <Unlock className="w-3.5 h-3.5" />
-              Mở khóa
+              <span className="hidden sm:inline">Mở khóa</span>
             </Button>
-            <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setBulkAction('delete')}>
+            <Button size="sm" variant="destructive" className="gap-1.5 h-8 text-xs sm:text-sm" onClick={() => setBulkAction('delete')} disabled={selectedIds.size === 0}>
               <Trash2 className="w-3.5 h-3.5" />
-              Xóa
+              <span className="hidden sm:inline">Xóa</span>
             </Button>
-            <Button size="sm" variant="ghost" onClick={clearSelection}>
-              <XSquare className="w-4 h-4" />
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={clearSelection}>
+              <X className="w-4 h-4" />
             </Button>
           </div>
         )}
@@ -744,10 +747,10 @@ export default function MemberManagement() {
                   Tất cả thành viên đã được phê duyệt trong hệ thống
                 </CardDescription>
               </div>
-              {!someSelected && selectableMembers.length > 0 && (
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={toggleSelectAll}>
+              {!isSelectMode && selectableMembers.length > 0 && (
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setIsSelectMode(true)}>
                   <CheckSquare className="w-4 h-4" />
-                  Chọn tất cả
+                  Chọn nhiều
                 </Button>
               )}
             </div>
@@ -772,8 +775,8 @@ export default function MemberManagement() {
                   const isSelected = selectedIds.has(member.id);
                   
                   return (
-                    <div key={member.id} className={`flex items-center gap-4 p-4 rounded-xl transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border border-primary/30' : suspended ? 'bg-destructive/5 hover:bg-destructive/10 border border-destructive/20' : 'bg-muted/30 hover:bg-muted/50'}`} onClick={() => { if (someSelected && canManage) { toggleSelect(member.id); } else { setSelectedMember(member); setIsDetailDialogOpen(true); } }}>
-                      {canManage && (
+                    <div key={member.id} className={`flex items-center gap-3 p-4 rounded-xl transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border border-primary/30' : suspended ? 'bg-destructive/5 hover:bg-destructive/10 border border-destructive/20' : 'bg-muted/30 hover:bg-muted/50'}`} onClick={() => { if (isSelectMode && canManage) { toggleSelect(member.id); } else if (!isSelectMode) { setSelectedMember(member); setIsDetailDialogOpen(true); } }}>
+                      {isSelectMode && canManage && (
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => toggleSelect(member.id)}
@@ -817,7 +820,7 @@ export default function MemberManagement() {
                         </p>
                       </div>
                       
-                      {canManage && !someSelected && (
+                      {canManage && !isSelectMode && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => e.stopPropagation()}>
