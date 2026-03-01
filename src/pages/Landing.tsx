@@ -810,7 +810,7 @@ export default function Landing() {
                     {/* Main text */}
                     <span className="relative z-10 block text-[2.5rem] font-heading font-semibold tracking-[0.3em] uppercase select-none overflow-hidden group-hover:tracking-[0.4em] transition-all duration-700">
                       <span className="text-muted-foreground/30 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-primary group-hover:to-accent transition-all duration-700">Khám phá</span>
-                      <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/25 via-50% to-transparent animate-[shimmer_3s_ease-in-out_infinite] pointer-events-none mix-blend-screen" style={{ backgroundSize: '200% 100%', animation: 'shimmer-gradient 3s ease-in-out infinite' }} />
+                      <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite] pointer-events-none" />
                     </span>
                     {/* Underline draw animation */}
                     <span className="block h-[3px] bg-primary/20 group-hover:bg-primary transition-colors duration-500 mt-3 relative overflow-hidden">
@@ -933,13 +933,9 @@ export default function Landing() {
       )}
 
       <style>{`
-        @keyframes shimmer-gradient {
-          0%, 100% { transform: translateX(-100%); opacity: 0; }
-          10% { opacity: 1; }
-          45% { background: linear-gradient(90deg, transparent 20%, hsl(var(--primary) / 0.3) 50%, transparent 80%); }
-          55% { background: linear-gradient(90deg, transparent 20%, hsl(var(--accent) / 0.3) 50%, transparent 80%); }
-          90% { opacity: 1; }
-          100% { transform: translateX(100%); opacity: 0; }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
         }
         @keyframes slide-in-from-right {
           from { opacity: 0; transform: translateX(24px); }
