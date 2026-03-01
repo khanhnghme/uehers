@@ -49,6 +49,7 @@ import {
   Shield,
   UserCheck,
   Download,
+  Upload,
   Eye,
   CheckSquare,
   X,
@@ -60,6 +61,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import UserAvatar from '@/components/UserAvatar';
 import ProfileViewDialog from '@/components/ProfileViewDialog';
 import { useUserPresence } from '@/hooks/useUserPresence';
+import ExcelMemberImport, { type ParsedRow, type ExcelImportAction, type ImportValidation } from '@/components/ExcelMemberImport';
 import type { GroupMember, Profile } from '@/types/database';
 
 interface MemberManagementCardProps {
@@ -119,6 +121,7 @@ export default function MemberManagementCard({
   const [bulkMemberAction, setBulkMemberAction] = useState<'delete' | 'role' | null>(null);
   const [bulkRole, setBulkRole] = useState<'member' | 'leader'>('member');
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
 
   const getRoleBadge = (role: string, memberId?: string) => {
     // Check if this member is the group creator (Trưởng nhóm)
@@ -496,6 +499,10 @@ export default function MemberManagementCard({
                 >
                   <Download className="w-4 h-4" />
                   <span className="hidden sm:inline">Xuất Excel</span>
+                </Button>
+                <Button onClick={() => setIsExcelImportOpen(true)} size="sm" variant="outline" className="gap-2">
+                  <Upload className="w-4 h-4" />
+                  <span className="hidden sm:inline">Import</span>
                 </Button>
                 <Button onClick={() => setIsCreateDialogOpen(true)} size="sm" variant="outline" className="gap-2">
                   <UserPlus className="w-4 h-4" />
@@ -1029,6 +1036,122 @@ export default function MemberManagementCard({
         profile={profileToView}
         role={profileViewRole}
         isGroupCreator={profileViewIsCreator}
+      />
+
+      {/* Excel Import Dialog */}
+      <ExcelMemberImport
+        open={isExcelImportOpen}
+        onOpenChange={setIsExcelImportOpen}
+        contextLabel="project"
+        allowedActions={['add', 'remove']}
+        onValidate={async (action: ExcelImportAction, rows: ParsedRow[]) => {
+          const results: ImportValidation[] = [];
+          for (const row of rows) {
+            if (action === 'add') {
+              if (!row.fullName || !row.email) {
+                results.push({ row, status: 'missing_field', message: `Thiếu ${!row.fullName ? 'họ tên' : 'email'}` });
+                continue;
+              }
+              // Check if already in project
+              const existing = members.find(m => m.profiles?.email?.toLowerCase() === row.email.toLowerCase());
+              if (existing) {
+                results.push({ row, status: 'duplicate', message: 'Đã có trong project' });
+              } else {
+                results.push({ row, status: 'ok' });
+              }
+            } else {
+              const match = members.find(m =>
+                (row.studentId && m.profiles?.student_id === row.studentId) ||
+                (row.email && m.profiles?.email?.toLowerCase() === row.email.toLowerCase())
+              );
+              if (!match) {
+                results.push({ row, status: 'not_found', message: 'Không có trong project' });
+              } else if (match.user_id === currentUserId || isMemberGroupCreator(match.user_id)) {
+                results.push({ row, status: 'missing_field', message: 'Không thể xóa' });
+              } else {
+                results.push({ row, status: 'ok' });
+              }
+            }
+          }
+          return results;
+        }}
+        onExecute={async (action: ExcelImportAction, rows: ParsedRow[]) => {
+          let success = 0;
+          let failed = 0;
+          const errors: string[] = [];
+
+          if (action === 'add') {
+            for (const row of rows) {
+              try {
+                // Find existing profile by email
+                const existingProfile = availableProfiles.find(p => p.email.toLowerCase() === row.email.toLowerCase());
+                let userId = existingProfile?.id;
+
+                if (!userId) {
+                  // Create new system account
+                  const { data, error } = await supabase.functions.invoke('manage-users', {
+                    body: { action: 'create_member', email: row.email, student_id: row.studentId, full_name: row.fullName },
+                  });
+                  if (error || data?.error) throw new Error(data?.error || error?.message);
+                  userId = data?.user?.id;
+                }
+
+                if (!userId) throw new Error('Không tạo được tài khoản');
+
+                // Add to project
+                const { error: addErr } = await supabase.from('group_members').insert({
+                  group_id: groupId, user_id: userId, role: 'member',
+                });
+                if (addErr) {
+                  if (addErr.code === '23505') throw new Error('Đã có trong project');
+                  throw addErr;
+                }
+                success++;
+              } catch (err: any) {
+                failed++;
+                errors.push(`${row.fullName}: ${err.message}`);
+              }
+            }
+          } else {
+            for (const row of rows) {
+              try {
+                const match = members.find(m =>
+                  (row.studentId && m.profiles?.student_id === row.studentId) ||
+                  (row.email && m.profiles?.email?.toLowerCase() === row.email.toLowerCase())
+                );
+                if (!match) { failed++; errors.push(`${row.fullName}: Không tìm thấy`); continue; }
+
+                // Remove task assignments
+                const { data: tasksData } = await supabase.from('tasks').select('id').eq('group_id', groupId);
+                if (tasksData?.length) {
+                  await supabase.from('task_assignments').delete()
+                    .eq('user_id', match.user_id)
+                    .in('task_id', tasksData.map(t => t.id));
+                }
+                const { error } = await supabase.from('group_members').delete().eq('id', match.id);
+                if (error) throw error;
+                success++;
+              } catch (err: any) {
+                failed++;
+                errors.push(`${row.fullName}: ${err.message}`);
+              }
+            }
+          }
+
+          if (success > 0) {
+            await supabase.from('activity_logs').insert({
+              user_id: user!.id,
+              user_name: profile?.full_name || user?.email || 'Unknown',
+              action: action === 'add' ? 'BULK_IMPORT_PROJECT_MEMBERS' : 'BULK_REMOVE_PROJECT_MEMBERS',
+              action_type: 'member',
+              description: `${action === 'add' ? 'Import' : 'Xóa'} hàng loạt ${success} thành viên ${action === 'add' ? 'vào' : 'khỏi'} project từ Excel`,
+              group_id: groupId,
+            });
+          }
+
+          onRefresh();
+          return { success, failed, errors };
+        }}
       />
     </>
   );
