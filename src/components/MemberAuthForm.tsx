@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { useToast } from '@/hooks/use-toast';
 import { UEHLogo } from '@/components/UEHLogo';
 import { Loader2, Hash, Lock, Users, Mail, User, UserPlus, LogIn } from 'lucide-react';
@@ -276,153 +276,169 @@ export function MemberAuthForm() {
         </span>
       </div>
       <Card className="w-full shadow-card-lg border-border/50">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <CardHeader className="text-center pb-2">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login" className="flex items-center gap-1.5">
-                <LogIn className="w-4 h-4" /> Đăng nhập
-              </TabsTrigger>
-              <TabsTrigger value="register" className="flex items-center gap-1.5">
-                <UserPlus className="w-4 h-4" /> Tạo tài khoản
-              </TabsTrigger>
-            </TabsList>
-          </CardHeader>
-          <CardContent>
-            <TabsContent value="login" className="mt-0">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-identifier">Mã số sinh viên (MSSV)</Label>
-                  <div className="relative">
-                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="login-identifier"
-                      type="text"
-                      placeholder="31241234567"
-                      className="pl-10"
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value)}
-                      disabled={isLoading}
-                      autoFocus
-                    />
-                  </div>
-                  {errors.identifier && <p className="text-sm text-destructive">{errors.identifier}</p>}
+        <CardHeader className="text-center pb-2">
+          <CardTitle className="text-lg font-heading">
+            {activeTab === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
+          </CardTitle>
+          <CardDescription>
+            {activeTab === 'login'
+              ? 'Nhập MSSV và mật khẩu để đăng nhập'
+              : 'Điền thông tin để đăng ký tài khoản mới'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {activeTab === 'login' ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="login-identifier">Mã số sinh viên (MSSV)</Label>
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="login-identifier"
+                    type="text"
+                    placeholder="31241234567"
+                    className="pl-10"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    disabled={isLoading}
+                    autoFocus
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Mật khẩu</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="••••••••"
-                      className="pl-10"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                {errors.identifier && <p className="text-sm text-destructive">{errors.identifier}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="login-password">Mật khẩu</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="login-password"
+                    type="password"
+                    placeholder="••••••••"
+                    className="pl-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
                 </div>
-                <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+              </div>
+              <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
+                {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Đăng nhập
+              </Button>
+              <p className="text-sm text-center text-muted-foreground">
+                Chưa có tài khoản?{' '}
+                <button
+                  type="button"
+                  className="text-primary hover:underline font-medium"
+                  onClick={() => { setActiveTab('register'); setErrors({}); }}
+                >
+                  Đăng ký ngay
+                </button>
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="reg-student-id">Mã số sinh viên (MSSV)</Label>
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="reg-student-id"
+                    type="text"
+                    placeholder="31241234567"
+                    className="pl-10"
+                    value={regStudentId}
+                    onChange={(e) => setRegStudentId(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.studentId && <p className="text-sm text-destructive">{errors.studentId}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-full-name">Họ và tên</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="reg-full-name"
+                    type="text"
+                    placeholder="Nguyễn Văn A"
+                    className="pl-10"
+                    value={regFullName}
+                    onChange={(e) => setRegFullName(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="reg-email"
+                    type="email"
+                    placeholder="email@example.com"
+                    className="pl-10"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-password">Mật khẩu</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="reg-password"
+                    type="password"
+                    placeholder="Tối thiểu 6 ký tự"
+                    className="pl-10"
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reg-confirm-password">Xác nhận mật khẩu</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="reg-confirm-password"
+                    type="password"
+                    placeholder="Nhập lại mật khẩu"
+                    className="pl-10"
+                    value={regConfirmPassword}
+                    onChange={(e) => setRegConfirmPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </div>
+                {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
+              </div>
+              <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
+                {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Tạo tài khoản
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Sau khi tạo, tài khoản cần được Admin duyệt trước khi sử dụng.
+              </p>
+              <p className="text-sm text-center text-muted-foreground">
+                Đã có tài khoản?{' '}
+                <button
+                  type="button"
+                  className="text-primary hover:underline font-medium"
+                  onClick={() => { setActiveTab('login'); setErrors({}); }}
+                >
                   Đăng nhập
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="register" className="mt-0">
-              <form onSubmit={handleRegister} className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="reg-student-id">Mã số sinh viên (MSSV)</Label>
-                  <div className="relative">
-                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="reg-student-id"
-                      type="text"
-                      placeholder="31241234567"
-                      className="pl-10"
-                      value={regStudentId}
-                      onChange={(e) => setRegStudentId(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {errors.studentId && <p className="text-sm text-destructive">{errors.studentId}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-full-name">Họ và tên</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="reg-full-name"
-                      type="text"
-                      placeholder="Nguyễn Văn A"
-                      className="pl-10"
-                      value={regFullName}
-                      onChange={(e) => setRegFullName(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="reg-email"
-                      type="email"
-                      placeholder="email@example.com"
-                      className="pl-10"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-password">Mật khẩu</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="reg-password"
-                      type="password"
-                      placeholder="Tối thiểu 6 ký tự"
-                      className="pl-10"
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reg-confirm-password">Xác nhận mật khẩu</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="reg-confirm-password"
-                      type="password"
-                      placeholder="Nhập lại mật khẩu"
-                      className="pl-10"
-                      value={regConfirmPassword}
-                      onChange={(e) => setRegConfirmPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
-                </div>
-                <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  Tạo tài khoản
-                </Button>
-                <p className="text-xs text-muted-foreground text-center">
-                  Sau khi tạo, tài khoản cần được Admin duyệt trước khi sử dụng.
-                </p>
-              </form>
-            </TabsContent>
-          </CardContent>
-        </Tabs>
+                </button>
+              </p>
+            </form>
+          )}
+        </CardContent>
       </Card>
     </div>
   );
