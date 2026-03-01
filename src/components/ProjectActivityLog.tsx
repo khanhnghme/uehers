@@ -397,6 +397,26 @@ export default function ProjectActivityLog({ groupId, groupName = 'Project', isL
         </CardHeader>
         
         <CardContent className="space-y-4">
+          {/* Logging disabled banner */}
+          {!loggingEnabled && (
+            <div className="flex items-start gap-3 p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+              <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-destructive">
+                  Chức năng ghi nhật ký đang bị tắt
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Hệ thống hiện không ghi nhận các hoạt động mới trong dự án này. Tất cả hành động của thành viên (thêm/xóa thành viên, tạo/sửa/xóa task, nộp bài, quản lý giai đoạn...) sẽ <span className="font-medium text-foreground">không được lưu lại</span> cho đến khi chức năng được bật trở lại.
+                </p>
+                {canManage && (
+                  <p className="text-xs text-muted-foreground">
+                    Bạn có thể bật lại bằng nút <span className="font-medium">Ghi nhật ký</span> ở trên.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           <ActivityLogFilters
             filters={filters}
             onFiltersChange={setFilters}
