@@ -367,7 +367,7 @@ export default function Groups() {
                           Thông tin dự án
                         </div>
 
-                        <div className="flex gap-4 items-start">
+                        <div className="flex gap-3 items-end">
                           <div className="flex-1 space-y-2">
                             <Label htmlFor="group-name" className="flex items-center gap-1">
                               Tên dự án <span className="text-destructive">*</span>
@@ -381,42 +381,35 @@ export default function Groups() {
                             />
                           </div>
 
-                          {/* Image upload compact */}
-                          <div className="space-y-1.5 flex-shrink-0">
-                            <Label className="flex items-center gap-1 text-xs">
-                              <ImagePlus className="w-3.5 h-3.5" />
-                              Ảnh bìa
-                            </Label>
-                            <label className="cursor-pointer block">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={handleImageSelect}
-                              />
-                              {groupImagePreview ? (
-                                <div className="relative w-20 h-20 rounded-lg overflow-hidden border group/img">
-                                  <img src={groupImagePreview} alt="Preview" className="w-full h-full object-cover" />
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setGroupImage(null);
-                                      setGroupImagePreview(null);
-                                    }}
-                                    className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"
-                                  >
-                                    <X className="w-4 h-4 text-white" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground">
-                                  <ImagePlus className="w-5 h-5" />
-                                  <span className="text-[10px]">Tải lên</span>
-                                </div>
-                              )}
-                            </label>
-                          </div>
+                          {/* Image upload - tiny inline */}
+                          <label className="cursor-pointer flex-shrink-0 mb-0.5">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleImageSelect}
+                            />
+                            {groupImagePreview ? (
+                              <div className="relative w-9 h-9 rounded-md overflow-hidden border group/img">
+                                <img src={groupImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setGroupImage(null);
+                                    setGroupImagePreview(null);
+                                  }}
+                                  className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"
+                                >
+                                  <X className="w-3 h-3 text-white" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="w-9 h-9 rounded-md border border-dashed border-muted-foreground/40 hover:border-primary/60 transition-colors flex items-center justify-center text-muted-foreground hover:text-primary" title="Tải ảnh bìa">
+                                <ImagePlus className="w-4 h-4" />
+                              </div>
+                            )}
+                          </label>
                         </div>
 
                         <div className="space-y-2">
