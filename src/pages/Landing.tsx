@@ -1,47 +1,60 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Users, Shield, Loader2, Sparkles, X, ChevronRight, CheckCircle2, BarChart3, ListChecks, Clock, Award, Globe, MessageSquare } from 'lucide-react';
+import { ArrowRight, Users, Shield, Loader2, Sparkles, X, ChevronRight, ChevronLeft, CheckCircle2, BarChart3, ListChecks, Clock, Award, Globe, MessageSquare, FileText, Zap, Lock, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import uehLogo from '@/assets/ueh-logo-new.png';
 
-const introSections = [
+const introPages = [
   {
-    icon: ListChecks,
-    title: 'Quản lý Task thông minh',
-    desc: 'Tạo, phân công và theo dõi tiến độ công việc theo từng giai đoạn. Hỗ trợ Kanban board, deadline tự động và nhắc nhở thông minh.',
-    color: 'from-primary/20 to-primary/5',
+    title: 'Tổng quan hệ thống',
+    subtitle: 'Teamworks UEH — Nền tảng quản lý công việc nhóm',
+    content: [
+      { icon: Sparkles, label: 'Mục đích', text: 'Hỗ trợ sinh viên UEH quản lý công việc nhóm một cách minh bạch, hiệu quả với hệ thống tính điểm tự động, đảm bảo đánh giá công bằng cho mọi thành viên.' },
+      { icon: Users, label: 'Đối tượng', text: 'Sinh viên UEH làm đồ án nhóm, giảng viên cần theo dõi và đánh giá tiến độ nhóm. Hệ thống phi thương mại, phục vụ mục đích học tập.' },
+      { icon: Globe, label: 'Truy cập', text: 'Giao diện web responsive, hoạt động trên mọi thiết bị. Hỗ trợ chia sẻ dự án công khai cho giảng viên xem mà không cần đăng nhập.' },
+    ],
   },
   {
-    icon: BarChart3,
-    title: 'Hệ thống chấm điểm tự động',
-    desc: 'Tính điểm công bằng dựa trên: nộp đúng hạn, chất lượng, bonus sớm, penalty trễ. Hỗ trợ khiếu nại và điều chỉnh linh hoạt.',
-    color: 'from-accent/20 to-accent/5',
+    title: 'Quản lý Task',
+    subtitle: 'Phân công, theo dõi và hoàn thành công việc',
+    content: [
+      { icon: ListChecks, label: 'Tạo & phân công', text: 'Leader tạo task, gán deadline, phân công cho thành viên. Hỗ trợ mô tả chi tiết, đính kèm tài liệu và ghi chú nội bộ.' },
+      { icon: BarChart3, label: 'Kanban Board', text: 'Theo dõi tiến độ trực quan với bảng Kanban (TODO → IN_PROGRESS → DONE → VERIFIED). Kéo thả để cập nhật trạng thái.' },
+      { icon: Clock, label: 'Deadline thông minh', text: 'Hệ thống nhắc nhở trước deadline, hỗ trợ gia hạn deadline riêng. Tự động tính penalty khi nộp trễ.' },
+      { icon: Upload, label: 'Nộp bài đa dạng', text: 'Hỗ trợ nộp link, upload file (giới hạn dung lượng tùy chỉnh), lưu lịch sử nộp bài đầy đủ cho từng thành viên.' },
+    ],
   },
   {
-    icon: Clock,
-    title: 'Theo dõi tiến độ realtime',
-    desc: 'Dashboard trực quan hiển thị tiến độ từng thành viên, từng giai đoạn. Thông báo tức thì khi có thay đổi.',
-    color: 'from-success/20 to-success/5',
+    title: 'Hệ thống chấm điểm',
+    subtitle: 'Tính điểm tự động, công bằng và minh bạch',
+    content: [
+      { icon: Award, label: 'Chấm điểm task', text: 'Điểm cơ bản 100, trừ penalty nộp trễ, trừ penalty review nhiều lần. Cộng bonus nộp sớm và bonus Bug Hunter.' },
+      { icon: BarChart3, label: 'Điểm giai đoạn', text: 'Tính trung bình điểm task theo giai đoạn, áp dụng hệ số K tùy chỉnh. Hỗ trợ cấu hình trọng số cho từng giai đoạn.' },
+      { icon: CheckCircle2, label: 'Điểm tổng kết', text: 'Trung bình có trọng số các giai đoạn + điều chỉnh cá nhân = điểm cuối cùng. Xuất báo cáo Excel chi tiết.' },
+      { icon: FileText, label: 'Khiếu nại & lịch sử', text: 'Thành viên có thể gửi khiếu nại điểm kèm minh chứng. Mọi điều chỉnh đều được ghi log đầy đủ.' },
+    ],
   },
   {
-    icon: Award,
-    title: 'Đánh giá minh bạch',
-    desc: 'Lịch sử điều chỉnh điểm, hệ thống khiếu nại, báo cáo chi tiết giúp giảng viên và sinh viên đánh giá công bằng.',
-    color: 'from-warning/20 to-warning/5',
+    title: 'Quản lý dự án',
+    subtitle: 'Tổ chức nhóm và tài nguyên hiệu quả',
+    content: [
+      { icon: Users, label: 'Thành viên', text: 'Thêm thành viên bằng MSSV, phân vai trò Leader/Member. Hỗ trợ import hàng loạt từ Excel, đình chỉ tạm thời.' },
+      { icon: ListChecks, label: 'Giai đoạn', text: 'Chia dự án thành nhiều giai đoạn (Stage) với thời gian và mô tả riêng. Sắp xếp task theo giai đoạn.' },
+      { icon: Upload, label: 'Tài nguyên', text: 'Upload file, thêm link tài liệu, tổ chức theo thư mục. Hỗ trợ tải cả thư mục và đổi tên khi upload.' },
+      { icon: Lock, label: 'Bảo mật', text: 'Phân quyền chi tiết: Admin, Leader, Member. Dữ liệu được bảo vệ bằng RLS policies ở cấp database.' },
+    ],
   },
   {
-    icon: Globe,
-    title: 'Chia sẻ dự án công khai',
-    desc: 'Tạo link chia sẻ để giảng viên hoặc bên ngoài xem tiến độ dự án mà không cần đăng nhập.',
-    color: 'from-info/20 to-info/5',
-  },
-  {
-    icon: MessageSquare,
-    title: 'Giao tiếp tập trung',
-    desc: 'Bình luận theo task, mention thành viên, thảo luận nhóm — mọi trao đổi đều gắn liền với công việc cụ thể.',
-    color: 'from-primary/15 to-accent/10',
+    title: 'Tính năng nâng cao',
+    subtitle: 'Công cụ hỗ trợ chuyên nghiệp',
+    content: [
+      { icon: MessageSquare, label: 'Giao tiếp', text: 'Chat nhóm, bình luận theo task, mention @thành viên. Thông báo realtime khi được nhắc đến hoặc có thay đổi.' },
+      { icon: Zap, label: 'AI Assistant', text: 'Trợ lý AI tích hợp hỗ trợ phân tích tiến độ, gợi ý cải thiện và trả lời câu hỏi về hệ thống.' },
+      { icon: FileText, label: 'Xuất báo cáo', text: 'Xuất PDF nhật ký hoạt động, xuất Excel điểm số, xuất minh chứng dự án đầy đủ phục vụ đánh giá.' },
+      { icon: Globe, label: 'Sao lưu & Khôi phục', text: 'Sao lưu toàn bộ dự án thành file ZIP, khôi phục trên project mới. Hỗ trợ hủy giữa chừng an toàn.' },
+    ],
   },
 ];
 
@@ -49,8 +62,10 @@ export default function Landing() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
   const [introVisible, setIntroVisible] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
 
   const openIntro = () => {
+    setCurrentPage(0);
     setShowIntro(true);
     requestAnimationFrame(() => setIntroVisible(true));
   };
@@ -205,7 +220,7 @@ export default function Landing() {
         </div>
       </footer>
 
-      {/* Intro Overlay */}
+      {/* Intro Overlay - 16:9 multi-page */}
       {showIntro && (
         <div
           className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-[400ms] ${
@@ -215,86 +230,124 @@ export default function Landing() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`relative w-[95vw] max-w-5xl max-h-[88vh] bg-background rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-500 ease-out ${
+            className={`bg-background rounded-xl overflow-hidden flex flex-col shadow-2xl transition-all duration-500 ease-out ${
               introVisible
                 ? 'opacity-100 scale-100 translate-y-0'
                 : 'opacity-0 scale-95 translate-y-8'
             }`}
+            style={{ width: '1280px', maxWidth: '95vw', height: '720px', maxHeight: '90vh' }}
           >
-            {/* Intro Header */}
+            {/* Header bar */}
             <div className="relative overflow-hidden flex-shrink-0">
               <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-accent opacity-95" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,hsl(var(--primary-foreground)/0.08),transparent_60%)]" />
-              <div className="relative px-8 py-8 text-primary-foreground">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary-foreground/15 flex items-center justify-center backdrop-blur-sm">
-                        <Sparkles className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold tracking-tight">Teamworks UEH</h2>
-                        <p className="text-primary-foreground/80 text-sm">Effective Team Task Management System</p>
-                      </div>
-                    </div>
-                    <p className="text-primary-foreground/70 text-sm max-w-xl mt-3 leading-relaxed">
-                      Nền tảng quản lý công việc nhóm toàn diện dành cho sinh viên UEH — từ phân công task, theo dõi tiến độ
-                      đến chấm điểm tự động và đánh giá minh bạch.
-                    </p>
+              <div className="relative px-6 py-4 text-primary-foreground flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold">Giới thiệu Teamworks UEH</h2>
+                    <p className="text-primary-foreground/70 text-xs">Trang {currentPage + 1} / {introPages.length}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* Page dots */}
+                  <div className="flex gap-1.5">
+                    {introPages.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentPage(i)}
+                        className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                          i === currentPage
+                            ? 'bg-primary-foreground w-6'
+                            : 'bg-primary-foreground/30 hover:bg-primary-foreground/50'
+                        }`}
+                      />
+                    ))}
                   </div>
                   <button
                     onClick={closeIntro}
-                    className="w-9 h-9 rounded-full bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors flex items-center justify-center flex-shrink-0"
+                    className="w-8 h-8 rounded-full bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors flex items-center justify-center"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Intro Body */}
-            <div className="flex-1 overflow-y-auto p-8">
-              <div className="space-y-6">
-                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-primary" />
-                  Tính năng nổi bật
-                </h3>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  {introSections.map((section, i) => (
-                    <div
-                      key={i}
-                      className={`group rounded-xl bg-gradient-to-br ${section.color} border border-border/50 p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5`}
-                      style={{
-                        animation: introVisible ? `fade-in 0.4s ease-out ${i * 80}ms both` : 'none',
-                      }}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-background/80 shadow-sm flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                          <section.icon className="w-5 h-5 text-primary" />
-                        </div>
-                        <div className="space-y-1.5 min-w-0">
-                          <h4 className="font-semibold text-foreground">{section.title}</h4>
-                          <p className="text-sm text-muted-foreground leading-relaxed">{section.desc}</p>
-                        </div>
-                      </div>
+            {/* Page content */}
+            <div className="flex-1 overflow-y-auto">
+              {(() => {
+                const page = introPages[currentPage];
+                return (
+                  <div key={currentPage} className="p-8 h-full flex flex-col animate-fade-in">
+                    {/* Page title */}
+                    <div className="mb-6 space-y-1">
+                      <h3 className="text-2xl font-bold text-foreground">{page.title}</h3>
+                      <p className="text-muted-foreground">{page.subtitle}</p>
                     </div>
-                  ))}
-                </div>
 
-                {/* Bottom CTA */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-4 border-t border-border/50">
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <img src={uehLogo} alt="UEH" className="h-6 w-auto opacity-60" />
-                    <span>Đồ án sinh viên • Phi thương mại • Mục đích học tập</span>
+                    {/* Feature cards */}
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {page.content.map((item, i) => (
+                        <div
+                          key={i}
+                          className="group rounded-xl border border-border/60 bg-muted/30 p-5 transition-all duration-300 hover:shadow-md hover:bg-muted/50 hover:-translate-y-0.5"
+                          style={{
+                            animation: `fade-in 0.4s ease-out ${i * 100}ms both`,
+                          }}
+                        >
+                          <div className="flex items-start gap-4">
+                            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/15 to-accent/10 shadow-sm flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                              <item.icon className="w-5 h-5 text-primary" />
+                            </div>
+                            <div className="space-y-1.5 min-w-0 flex-1">
+                              <h4 className="font-semibold text-foreground text-sm">{item.label}</h4>
+                              <p className="text-sm text-muted-foreground leading-relaxed">{item.text}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer nav */}
+            <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/30 flex-shrink-0">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <img src={uehLogo} alt="UEH" className="h-5 w-auto opacity-50" />
+                <span>Đồ án sinh viên • Phi thương mại</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 0}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Trước
+                </Button>
+                {currentPage < introPages.length - 1 ? (
+                  <Button
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    className="gap-1"
+                  >
+                    Tiếp theo
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                ) : (
                   <Link to="/auth" onClick={closeIntro}>
-                    <Button size="lg" className="font-semibold px-8 shadow-lg hover:shadow-xl transition-shadow">
+                    <Button size="sm" className="gap-1 shadow-md">
                       Bắt đầu sử dụng
-                      <ArrowRight className="w-5 h-5 ml-2" />
+                      <ArrowRight className="w-4 h-4" />
                     </Button>
                   </Link>
-                </div>
+                )}
               </div>
             </div>
           </div>
