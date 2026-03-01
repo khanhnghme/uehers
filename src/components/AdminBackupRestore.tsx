@@ -290,8 +290,6 @@ export default function AdminBackupRestore() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   
   // Dialog & step tracking state
-  const [showExportDialog, setShowExportDialog] = useState(false);
-  const [showImportDialog, setShowImportDialog] = useState(false);
   const [exportStepLabel, setExportStepLabel] = useState('');
   const [importStepLabel, setImportStepLabel] = useState('');
   const [exportReport, setExportReport] = useState<BackupReport | null>(null);
@@ -302,6 +300,8 @@ export default function AdminBackupRestore() {
   const exportStartTime = useRef<number>(0);
   const importStartTime = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showMainDialog, setShowMainDialog] = useState(false);
+  const [activePage, setActivePage] = useState<'backup' | 'restore'>('backup');
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     includeMessages: true,
     includeTaskNotes: true,
@@ -471,7 +471,7 @@ export default function AdminBackupRestore() {
     setExportProgress(0);
     setExportSteps([]);
     setExportReport(null);
-    setShowExportDialog(true);
+    setShowMainDialog(true);
     exportStartTime.current = Date.now();
     
     try {
@@ -1195,7 +1195,7 @@ export default function AdminBackupRestore() {
     setImportSteps([]);
     setImportReport(null);
     setImportProgressPercent(0);
-    setShowImportDialog(true);
+    setShowMainDialog(true);
     importStartTime.current = Date.now();
     addImportStep('Đang đọc file ZIP...', 2);
 
@@ -2061,259 +2061,266 @@ export default function AdminBackupRestore() {
     fileInputRef.current?.click();
   };
 
+  const handleOpenDialog = () => {
+    setShowMainDialog(true);
+    setActivePage('backup');
+  };
+
   return (
     <>
-      <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-              <FolderArchive className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <CardTitle className="text-lg flex items-center gap-2">
-                Sao lưu & Khôi phục
-                <span className="text-xs font-normal text-amber-600 bg-amber-500/10 px-2 py-1 rounded-full">v5.0</span>
-              </CardTitle>
-              <CardDescription>Xuất và nhập toàn bộ dữ liệu project với kiểm tra tính toàn vẹn</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Export Section */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              Sao lưu Project
-            </Label>
-            
-            <div className="flex gap-3">
-              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Chọn project để sao lưu..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {groups.map(group => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button 
-                onClick={exportProject} 
-                disabled={!selectedGroupId || isExporting}
-                className="gap-2"
-              >
-                {isExporting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Đang xuất...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    Xuất toàn bộ
-                  </>
-                )}
-              </Button>
-            </div>
+      <Button onClick={handleOpenDialog} className="gap-2">
+        <FolderArchive className="w-4 h-4" />
+        Sao lưu & Khôi phục
+      </Button>
 
-            {/* Collapsible Filter Options */}
-            <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-              <CollapsibleTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full justify-between text-xs h-8">
-                  <span className="flex items-center gap-1.5">
-                    <Filter className="w-3 h-3" />
-                    Lọc nội dung ({selectedCount}/7)
-                  </span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-2">
-                <div className="space-y-2 p-3 bg-muted/50 rounded-md">
-                  <div className="flex gap-2 mb-2">
-                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={selectAllOptions}>
-                      Chọn tất cả
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={deselectAllOptions}>
-                      Bỏ chọn
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {[
-                      { key: 'includeMessages', label: 'Tin nhắn', icon: MessageSquare },
-                      { key: 'includeTaskNotes', label: 'Ghi chú task', icon: FileText },
-                      { key: 'includeTaskComments', label: 'Bình luận', icon: MessageCircle },
-                      { key: 'includeResources', label: 'Tài nguyên', icon: FolderOpen },
-                      { key: 'includeActivityLogs', label: 'Nhật ký', icon: History },
-                      { key: 'includeScores', label: 'Điểm số', icon: Award },
-                      { key: 'includeFeedbacks', label: 'Phản hồi', icon: HelpCircle },
-                    ].map(({ key, label, icon: Icon }) => (
-                      <div key={key} className="flex items-center gap-2">
-                        <Checkbox 
-                          id={key} 
-                          checked={exportOptions[key as keyof ExportOptions]}
-                          onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, [key]: !!checked }))}
-                          className="h-3.5 w-3.5"
-                        />
-                        <label htmlFor={key} className="text-xs flex items-center gap-1 cursor-pointer">
-                          <Icon className="w-3 h-3 text-muted-foreground" />
-                          {label}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-
-          <div className="border-t pt-6 space-y-3">
-            <Label className="text-sm font-medium flex items-center gap-2">
-              <Upload className="w-4 h-4" />
-              Khôi phục Project
-            </Label>
-            <input 
-              ref={fileInputRef}
-              type="file" 
-              accept=".zip" 
-              onChange={importProject}
-              disabled={isImporting}
-              className="hidden"
-            />
-            <Button 
-              variant="outline" 
-              onClick={handleImportClick}
-              disabled={isImporting}
-              className="w-full gap-2"
-            >
-              <Upload className="w-4 h-4" />
-              Chọn file ZIP để khôi phục
-            </Button>
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div className="text-xs text-amber-700 dark:text-amber-400">
-                <p className="font-medium mb-1">Lưu ý:</p>
-                <ul className="list-disc list-inside space-y-0.5">
-                  <li>Dữ liệu sẽ được tạo thành project mới</li>
-                  <li>Admin hiện tại sẽ trở thành Leader</li>
-                  <li>Kiểm tra toàn vẹn tự động (v5.0+)</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-green-700 dark:text-green-400">
-              <p className="font-medium mb-1">Hỗ trợ (v5.0):</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                {[
-                  [Settings, 'Thông tin project'],
-                  [File, 'File đính kèm'],
-                  [MessageSquare, 'Tin nhắn'],
-                  [FileText, 'Ghi chú task'],
-                  [MessageCircle, 'Bình luận task'],
-                  [FolderOpen, 'Tài nguyên dự án'],
-                  [History, 'Nhật ký hoạt động'],
-                  [Award, 'Điểm số đầy đủ'],
-                  [Bug, 'Lịch sử điều chỉnh'],
-                  [HelpCircle, 'Phản hồi & bình luận'],
-                  [Shield, 'Kiểm tra toàn vẹn'],
-                  [FolderArchive, 'Phân loại thư mục'],
-                ].map(([Icon, label], i) => {
-                  const IconComp = Icon as any;
-                  return (
-                    <span key={i} className="flex items-center gap-1">
-                      <IconComp className="w-3 h-3" /> {label as string}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Export Progress Dialog */}
-      <Dialog open={showExportDialog} onOpenChange={(open) => {
-        if (!isExporting) setShowExportDialog(open);
+      <Dialog open={showMainDialog} onOpenChange={(open) => {
+        if (!isExporting && !isImporting) setShowMainDialog(open);
       }}>
         <DialogContent 
           className="p-0 gap-0 overflow-hidden border-border/50"
           style={{ width: '1280px', maxWidth: '95vw', height: '720px', maxHeight: '95vh' }}
-          onInteractOutside={(e) => { if (isExporting) e.preventDefault(); }}
+          onInteractOutside={(e) => { if (isExporting || isImporting) e.preventDefault(); }}
         >
           <div className="flex flex-col h-full">
+            {/* Header with page tabs */}
             <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
               <DialogTitle className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Download className="w-4 h-4 text-primary" />
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <FolderArchive className="w-4 h-4 text-amber-600" />
                 </div>
-                <div>
-                  <span className="text-lg">Sao lưu Project</span>
-                  <p className="text-xs font-normal text-muted-foreground mt-0.5">
-                    {groups.find(g => g.id === selectedGroupId)?.name || ''}
-                  </p>
+                <div className="flex-1">
+                  <span className="text-lg">Sao lưu & Khôi phục</span>
+                  <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full">v5.0</span>
                 </div>
               </DialogTitle>
-            </DialogHeader>
-            <ScrollArea className="flex-1 px-6 py-4">
-              {exportReport ? (
-                <div className="max-w-2xl mx-auto">
-                  {renderReport(exportReport, 'export')}
-                  <div className="mt-6 flex justify-end">
-                    <Button onClick={() => { setShowExportDialog(false); setExportProgress(0); }}>
-                      Đóng
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="max-w-2xl mx-auto">
-                  {renderProgressDialog(exportSteps, exportStepLabel, exportProgress, isExporting)}
+              {/* Page switcher */}
+              {!isExporting && !isImporting && !exportReport && !importReport && (
+                <div className="flex gap-1 mt-3 bg-muted/50 p-1 rounded-lg">
+                  <button
+                    onClick={() => setActivePage('backup')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      activePage === 'backup'
+                        ? 'bg-background shadow-sm text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Download className="w-4 h-4" />
+                    Sao lưu
+                  </button>
+                  <button
+                    onClick={() => setActivePage('restore')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      activePage === 'restore'
+                        ? 'bg-background shadow-sm text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Khôi phục
+                  </button>
                 </div>
               )}
-            </ScrollArea>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Import Progress Dialog */}
-      <Dialog open={showImportDialog} onOpenChange={(open) => {
-        if (!isImporting) setShowImportDialog(open);
-      }}>
-        <DialogContent 
-          className="p-0 gap-0 overflow-hidden border-border/50"
-          style={{ width: '1280px', maxWidth: '95vw', height: '720px', maxHeight: '95vh' }}
-          onInteractOutside={(e) => { if (isImporting) e.preventDefault(); }}
-        >
-          <div className="flex flex-col h-full">
-            <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-              <DialogTitle className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Upload className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <span className="text-lg">Khôi phục Project</span>
-                  <p className="text-xs font-normal text-muted-foreground mt-0.5">
-                    {importStepLabel || 'Đang chuẩn bị...'}
-                  </p>
-                </div>
-              </DialogTitle>
             </DialogHeader>
+
             <ScrollArea className="flex-1 px-6 py-4">
-              {importReport ? (
+              {/* === EXPORT IN PROGRESS / REPORT === */}
+              {(isExporting || exportReport) ? (
                 <div className="max-w-2xl mx-auto">
-                  {renderReport(importReport, 'import')}
-                  <div className="mt-6 flex justify-end">
-                    <Button onClick={() => setShowImportDialog(false)}>
-                      Đóng
-                    </Button>
+                  {exportReport ? (
+                    <>
+                      {renderReport(exportReport, 'export')}
+                      <div className="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => { setExportReport(null); setExportProgress(0); }}>
+                          Quay lại
+                        </Button>
+                        <Button onClick={() => { setShowMainDialog(false); setExportReport(null); setExportProgress(0); }}>
+                          Đóng
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-4">
+                        <Download className="w-5 h-5 text-primary" />
+                        <h3 className="font-semibold">Đang sao lưu: {groups.find(g => g.id === selectedGroupId)?.name}</h3>
+                      </div>
+                      {renderProgressDialog(exportSteps, exportStepLabel, exportProgress, isExporting)}
+                    </>
+                  )}
+                </div>
+              ) : (isImporting || importReport) ? (
+                /* === IMPORT IN PROGRESS / REPORT === */
+                <div className="max-w-2xl mx-auto">
+                  {importReport ? (
+                    <>
+                      {renderReport(importReport, 'import')}
+                      <div className="mt-6 flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => { setImportReport(null); setImportProgressPercent(0); }}>
+                          Quay lại
+                        </Button>
+                        <Button onClick={() => { setShowMainDialog(false); setImportReport(null); }}>
+                          Đóng
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-4">
+                        <Upload className="w-5 h-5 text-primary" />
+                        <h3 className="font-semibold">Đang khôi phục dữ liệu...</h3>
+                      </div>
+                      {renderProgressDialog(importSteps, importStepLabel, importProgressPercent, isImporting)}
+                    </>
+                  )}
+                </div>
+              ) : activePage === 'backup' ? (
+                /* === BACKUP PAGE === */
+                <div className="max-w-2xl mx-auto space-y-5">
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Chọn Project</Label>
+                    <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn project để sao lưu..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groups.map(group => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Filter Options */}
+                  <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full justify-between text-xs h-8">
+                        <span className="flex items-center gap-1.5">
+                          <Filter className="w-3 h-3" />
+                          Lọc nội dung ({selectedCount}/7)
+                        </span>
+                        <ChevronDown className={`w-3 h-3 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+                        <div className="flex gap-2 mb-2">
+                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={selectAllOptions}>
+                            Chọn tất cả
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={deselectAllOptions}>
+                            Bỏ chọn
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {[
+                            { key: 'includeMessages', label: 'Tin nhắn', icon: MessageSquare },
+                            { key: 'includeTaskNotes', label: 'Ghi chú task', icon: FileText },
+                            { key: 'includeTaskComments', label: 'Bình luận', icon: MessageCircle },
+                            { key: 'includeResources', label: 'Tài nguyên', icon: FolderOpen },
+                            { key: 'includeActivityLogs', label: 'Nhật ký', icon: History },
+                            { key: 'includeScores', label: 'Điểm số', icon: Award },
+                            { key: 'includeFeedbacks', label: 'Phản hồi', icon: HelpCircle },
+                          ].map(({ key, label, icon: Icon }) => (
+                            <div key={key} className="flex items-center gap-2">
+                              <Checkbox 
+                                id={key} 
+                                checked={exportOptions[key as keyof ExportOptions]}
+                                onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, [key]: !!checked }))}
+                                className="h-3.5 w-3.5"
+                              />
+                              <label htmlFor={key} className="text-xs flex items-center gap-1 cursor-pointer">
+                                <Icon className="w-3 h-3 text-muted-foreground" />
+                                {label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  <Button 
+                    onClick={exportProject} 
+                    disabled={!selectedGroupId || isExporting}
+                    className="w-full gap-2"
+                    size="lg"
+                  >
+                    <Download className="w-4 h-4" />
+                    Bắt đầu sao lưu
+                  </Button>
+
+                  {/* Supported data info */}
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-muted-foreground">
+                      <p className="font-medium mb-1 text-foreground">Hỗ trợ sao lưu:</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                        {[
+                          [Settings, 'Thông tin project'],
+                          [File, 'File đính kèm'],
+                          [MessageSquare, 'Tin nhắn'],
+                          [FileText, 'Ghi chú task'],
+                          [MessageCircle, 'Bình luận task'],
+                          [FolderOpen, 'Tài nguyên dự án'],
+                          [History, 'Nhật ký hoạt động'],
+                          [Award, 'Điểm số đầy đủ'],
+                          [Bug, 'Lịch sử điều chỉnh'],
+                          [HelpCircle, 'Phản hồi & bình luận'],
+                          [Shield, 'Kiểm tra toàn vẹn'],
+                          [FolderArchive, 'Phân loại thư mục'],
+                        ].map(([Icon, label], i) => {
+                          const IconComp = Icon as any;
+                          return (
+                            <span key={i} className="flex items-center gap-1">
+                              <IconComp className="w-3 h-3" /> {label as string}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="max-w-2xl mx-auto">
-                  {renderProgressDialog(importSteps, importStepLabel, importProgressPercent, isImporting)}
+                /* === RESTORE PAGE === */
+                <div className="max-w-2xl mx-auto space-y-5">
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Chọn file ZIP backup</Label>
+                    <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      accept=".zip" 
+                      onChange={importProject}
+                      disabled={isImporting}
+                      className="hidden"
+                    />
+                    <Button 
+                      variant="outline" 
+                      onClick={handleImportClick}
+                      disabled={isImporting}
+                      className="w-full gap-2 h-20 border-dashed border-2"
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <Upload className="w-6 h-6 text-muted-foreground" />
+                        <span className="text-sm">Nhấn để chọn file ZIP</span>
+                        <span className="text-xs text-muted-foreground">Hỗ trợ file .zip từ hệ thống sao lưu v5.0</span>
+                      </div>
+                    </Button>
+                  </div>
+
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-amber-700 dark:text-amber-400">
+                      <p className="font-medium mb-1">Lưu ý quan trọng:</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        <li>Dữ liệu sẽ được tạo thành project mới</li>
+                        <li>Admin hiện tại sẽ trở thành Leader</li>
+                        <li>Kiểm tra toàn vẹn tự động (v5.0+)</li>
+                        <li>Thành viên sẽ được liên kết theo MSSV</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               )}
             </ScrollArea>
