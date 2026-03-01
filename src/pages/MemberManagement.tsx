@@ -11,6 +11,7 @@ import UserAvatar from '@/components/UserAvatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,7 +38,9 @@ import {
   Info,
   Download,
   Lock,
-  Unlock
+  Unlock,
+  CheckSquare,
+  XSquare
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
 import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
@@ -61,6 +64,9 @@ export default function MemberManagement() {
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkAction, setBulkAction] = useState<'delete' | 'suspend' | 'unsuspend' | null>(null);
   
   // Form state - New member
   const [newEmail, setNewEmail] = useState('');
@@ -409,15 +415,7 @@ export default function MemberManagement() {
     return member.suspended_until ? new Date(member.suspended_until).getTime() > Date.now() : false;
   };
 
-  const openEditDialog = (member: Profile) => {
-    setSelectedMember(member);
-    setEditFullName(member.full_name);
-    setEditStudentId(member.student_id);
-    setEditEmail(member.email);
-    setIsEditDialogOpen(true);
-  };
-
-  // Filter members by search
+  // Filter members by search (moved up for selection logic)
   const filteredMembers = members.filter(m => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -427,6 +425,136 @@ export default function MemberManagement() {
       m.email.toLowerCase().includes(query)
     );
   });
+
+  // ====== SELECTION ======
+  const selectableMembers = filteredMembers.filter(m => canManageMember(m.id));
+  const allSelectableSelected = selectableMembers.length > 0 && selectableMembers.every(m => selectedIds.has(m.id));
+  const someSelected = selectedIds.size > 0;
+
+  const openEditDialog = (member: Profile) => {
+    setSelectedMember(member);
+    setEditFullName(member.full_name);
+    setEditStudentId(member.student_id);
+    setEditEmail(member.email);
+    setIsEditDialogOpen(true);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allSelectableSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectableMembers.map(m => m.id)));
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // ====== BULK ACTIONS ======
+  const handleBulkSuspend = async () => {
+    setIsBulkProcessing(true);
+    const suspendedUntil = new Date(Date.now() + 86400000).toISOString(); // 1 day default
+    const ids = Array.from(selectedIds);
+    const names: string[] = [];
+
+    for (const id of ids) {
+      const member = members.find(m => m.id === id);
+      if (!member || isMemberSuspended(member)) continue;
+      const { error } = await supabase.from('profiles').update({
+        suspended_until: suspendedUntil,
+        suspension_reason: 'Khóa hàng loạt bởi Admin',
+        suspended_at: new Date().toISOString(),
+        suspended_by: user!.id,
+      }).eq('id', id);
+      if (!error) names.push(member.full_name);
+    }
+
+    if (names.length > 0) {
+      await supabase.from('activity_logs').insert({
+        user_id: user!.id,
+        user_name: currentProfile?.full_name || user?.email || 'Unknown',
+        action: 'BULK_SUSPEND_MEMBERS',
+        action_type: 'member',
+        description: `Tạm khóa hàng loạt ${names.length} tài khoản: ${names.join(', ')}`,
+      });
+      toast({ title: 'Đã khóa hàng loạt', description: `${names.length} tài khoản đã bị tạm khóa (1 ngày).` });
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+    setBulkAction(null);
+    fetchMembers();
+  };
+
+  const handleBulkUnsuspend = async () => {
+    setIsBulkProcessing(true);
+    const ids = Array.from(selectedIds);
+    const names: string[] = [];
+
+    for (const id of ids) {
+      const member = members.find(m => m.id === id);
+      if (!member || !isMemberSuspended(member)) continue;
+      const { error } = await supabase.from('profiles').update({
+        suspended_until: null, suspension_reason: null, suspended_at: null, suspended_by: null,
+      }).eq('id', id);
+      if (!error) names.push(member.full_name);
+    }
+
+    if (names.length > 0) {
+      await supabase.from('activity_logs').insert({
+        user_id: user!.id,
+        user_name: currentProfile?.full_name || user?.email || 'Unknown',
+        action: 'BULK_UNSUSPEND_MEMBERS',
+        action_type: 'member',
+        description: `Mở khóa hàng loạt ${names.length} tài khoản: ${names.join(', ')}`,
+      });
+      toast({ title: 'Đã mở khóa hàng loạt', description: `${names.length} tài khoản đã được mở khóa.` });
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+    setBulkAction(null);
+    fetchMembers();
+  };
+
+  const handleBulkDelete = async () => {
+    setIsBulkProcessing(true);
+    const ids = Array.from(selectedIds);
+    const names: string[] = [];
+
+    for (const id of ids) {
+      const member = members.find(m => m.id === id);
+      if (!member) continue;
+      const { data, error } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'delete_user', user_id: id, requester_id: user?.id },
+      });
+      if (!error && !data?.error) names.push(member.full_name);
+    }
+
+    if (names.length > 0) {
+      await supabase.from('activity_logs').insert({
+        user_id: user!.id,
+        user_name: currentProfile?.full_name || user?.email || 'Unknown',
+        action: 'BULK_DELETE_MEMBERS',
+        action_type: 'member',
+        description: `Xóa hàng loạt ${names.length} tài khoản: ${names.join(', ')}`,
+      });
+      toast({ title: 'Đã xóa hàng loạt', description: `${names.length} tài khoản đã bị xóa.` });
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+    setBulkAction(null);
+    fetchMembers();
+  };
+
 
   if (authLoading || isLoading) {
     return (
@@ -574,16 +702,55 @@ export default function MemberManagement() {
           />
         </div>
 
+        {/* Bulk Action Bar */}
+        {someSelected && (
+          <div className="sticky top-0 z-10 flex items-center gap-3 p-3 rounded-xl bg-primary/10 border border-primary/20 animate-in fade-in slide-in-from-top-2">
+            <Checkbox
+              checked={allSelectableSelected}
+              onCheckedChange={toggleSelectAll}
+            />
+            <span className="text-sm font-medium">
+              Đã chọn {selectedIds.size} thành viên
+            </span>
+            <div className="flex-1" />
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkAction('suspend')}>
+              <Lock className="w-3.5 h-3.5" />
+              Khóa
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkAction('unsuspend')}>
+              <Unlock className="w-3.5 h-3.5" />
+              Mở khóa
+            </Button>
+            <Button size="sm" variant="destructive" className="gap-1.5" onClick={() => setBulkAction('delete')}>
+              <Trash2 className="w-3.5 h-3.5" />
+              Xóa
+            </Button>
+            <Button size="sm" variant="ghost" onClick={clearSelection}>
+              <XSquare className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+
         {/* Members List */}
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-primary" />
-              Danh sách thành viên ({filteredMembers.length})
-            </CardTitle>
-            <CardDescription>
-              Tất cả thành viên đã được phê duyệt trong hệ thống
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Danh sách thành viên ({filteredMembers.length})
+                </CardTitle>
+                <CardDescription>
+                  Tất cả thành viên đã được phê duyệt trong hệ thống
+                </CardDescription>
+              </div>
+              {!someSelected && selectableMembers.length > 0 && (
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={toggleSelectAll}>
+                  <CheckSquare className="w-4 h-4" />
+                  Chọn tất cả
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {filteredMembers.length === 0 ? (
@@ -602,9 +769,18 @@ export default function MemberManagement() {
                   const canManage = canManageMember(member.id);
                   const isAdminMember = isMemberAdmin(member.id);
                   const suspended = isMemberSuspended(member);
+                  const isSelected = selectedIds.has(member.id);
                   
                   return (
-                    <div key={member.id} className={`flex items-center gap-4 p-4 rounded-xl transition-colors cursor-pointer ${suspended ? 'bg-destructive/5 hover:bg-destructive/10 border border-destructive/20' : 'bg-muted/30 hover:bg-muted/50'}`} onClick={() => { setSelectedMember(member); setIsDetailDialogOpen(true); }}>
+                    <div key={member.id} className={`flex items-center gap-4 p-4 rounded-xl transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border border-primary/30' : suspended ? 'bg-destructive/5 hover:bg-destructive/10 border border-destructive/20' : 'bg-muted/30 hover:bg-muted/50'}`} onClick={() => { if (someSelected && canManage) { toggleSelect(member.id); } else { setSelectedMember(member); setIsDetailDialogOpen(true); } }}>
+                      {canManage && (
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(member.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="shrink-0"
+                        />
+                      )}
                       <UserAvatar 
                         src={member.avatar_url}
                         name={member.full_name}
@@ -641,7 +817,7 @@ export default function MemberManagement() {
                         </p>
                       </div>
                       
-                      {canManage && (
+                      {canManage && !someSelected && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => e.stopPropagation()}>
@@ -857,6 +1033,50 @@ export default function MemberManagement() {
         member={selectedMember}
         systemRoles={selectedMember ? (memberRoles[selectedMember.id] || ['member']) : []}
       />
+
+      {/* Bulk Action Confirm Dialog */}
+      <AlertDialog open={bulkAction !== null} onOpenChange={(open) => {
+        if (!open) setBulkAction(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkAction === 'delete' && 'Xác nhận xóa hàng loạt'}
+              {bulkAction === 'suspend' && 'Xác nhận khóa hàng loạt'}
+              {bulkAction === 'unsuspend' && 'Xác nhận mở khóa hàng loạt'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkAction === 'delete' && (
+                <>
+                  Bạn sắp xóa <span className="font-semibold">{selectedIds.size}</span> tài khoản khỏi hệ thống.
+                  <br /><br />
+                  <span className="text-destructive font-medium">Thao tác này không thể hoàn tác!</span>
+                </>
+              )}
+              {bulkAction === 'suspend' && (
+                <>Bạn sắp tạm khóa <span className="font-semibold">{selectedIds.size}</span> tài khoản (mặc định 1 ngày). Các tài khoản đã khóa sẽ được bỏ qua.</>
+              )}
+              {bulkAction === 'unsuspend' && (
+                <>Bạn sắp mở khóa <span className="font-semibold">{selectedIds.size}</span> tài khoản. Chỉ các tài khoản đang bị khóa mới được xử lý.</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkProcessing}>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (bulkAction === 'delete') handleBulkDelete();
+                else if (bulkAction === 'suspend') handleBulkSuspend();
+                else if (bulkAction === 'unsuspend') handleBulkUnsuspend();
+              }}
+              className={bulkAction === 'delete' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+              disabled={isBulkProcessing}
+            >
+              {isBulkProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xác nhận'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
