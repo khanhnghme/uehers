@@ -808,7 +808,7 @@ export default function Landing() {
                   
                   <button onClick={openIntro} className="group relative cursor-pointer focus:outline-none">
                     {/* Main text */}
-                    <span className="relative z-10 block text-[3rem] font-extrabold tracking-[0.2em] text-foreground/10 group-hover:text-primary transition-colors duration-700 uppercase select-none">
+                    <span className="relative z-10 block text-[3rem] font-extrabold tracking-[0.2em] text-gradient group-hover:opacity-80 transition-opacity duration-700 uppercase select-none">
                       Khám phá
                     </span>
                     {/* Underline draw animation */}
