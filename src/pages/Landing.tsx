@@ -808,8 +808,9 @@ export default function Landing() {
                   
                   <button onClick={openIntro} className="group relative cursor-pointer focus:outline-none">
                     {/* Main text */}
-                    <span className="relative z-10 block text-[2.5rem] font-heading font-semibold tracking-[0.3em] text-muted-foreground/30 group-hover:text-gradient group-hover:tracking-[0.4em] transition-all duration-700 uppercase select-none">
-                      Khám phá
+                    <span className="relative z-10 block text-[2.5rem] font-heading font-semibold tracking-[0.3em] uppercase select-none overflow-hidden group-hover:tracking-[0.4em] transition-all duration-700">
+                      <span className="text-muted-foreground/30 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-primary group-hover:to-accent transition-all duration-700">Khám phá</span>
+                      <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent animate-[shimmer_3s_ease-in-out_infinite] pointer-events-none" />
                     </span>
                     {/* Underline draw animation */}
                     <span className="block h-[3px] bg-primary/20 group-hover:bg-primary transition-colors duration-500 mt-3 relative overflow-hidden">
@@ -932,6 +933,10 @@ export default function Landing() {
       )}
 
       <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
         @keyframes slide-in-from-right {
           from { opacity: 0; transform: translateX(24px); }
           to { opacity: 1; transform: translateX(0); }
