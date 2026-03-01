@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Users, Shield, Loader2, Sparkles, X, ChevronRight, ChevronLeft, CheckCircle2, BarChart3, ListChecks, Clock, Award, Globe, MessageSquare, FileText, Zap, Lock, Upload } from 'lucide-react';
+import { ArrowRight, Users, Shield, Loader2, X, ChevronRight, ChevronLeft, CheckCircle2, BarChart3, ListChecks, Clock, Award, Globe, MessageSquare, FileText, Zap, Lock, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -11,7 +11,7 @@ const introPages = [
     title: 'Tổng quan hệ thống',
     subtitle: 'Teamworks UEH — Nền tảng quản lý công việc nhóm',
     content: [
-      { icon: Sparkles, label: 'Mục đích', text: 'Hỗ trợ sinh viên UEH quản lý công việc nhóm một cách minh bạch, hiệu quả với hệ thống tính điểm tự động, đảm bảo đánh giá công bằng cho mọi thành viên.' },
+      { icon: CheckCircle2, label: 'Mục đích', text: 'Hỗ trợ sinh viên UEH quản lý công việc nhóm một cách minh bạch, hiệu quả với hệ thống tính điểm tự động, đảm bảo đánh giá công bằng cho mọi thành viên.' },
       { icon: Users, label: 'Đối tượng', text: 'Sinh viên UEH làm đồ án nhóm, giảng viên cần theo dõi và đánh giá tiến độ nhóm. Hệ thống phi thương mại, phục vụ mục đích học tập.' },
       { icon: Globe, label: 'Truy cập', text: 'Giao diện web responsive, hoạt động trên mọi thiết bị. Hỗ trợ chia sẻ dự án công khai cho giảng viên xem mà không cần đăng nhập.' },
     ],
@@ -63,6 +63,7 @@ export default function Landing() {
   const [showIntro, setShowIntro] = useState(false);
   const [introVisible, setIntroVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const [pageDirection, setPageDirection] = useState<'next' | 'prev'>('next');
 
   const openIntro = () => {
     setCurrentPage(0);
@@ -75,18 +76,31 @@ export default function Landing() {
     setTimeout(() => setShowIntro(false), 400);
   };
 
+  const goPage = useCallback((dir: 'next' | 'prev') => {
+    setPageDirection(dir);
+    setCurrentPage((p) => dir === 'next' ? Math.min(p + 1, introPages.length - 1) : Math.max(p - 1, 0));
+  }, []);
+
+  // Keyboard nav
+  useEffect(() => {
+    if (!showIntro) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeIntro();
+      if (e.key === 'ArrowRight') goPage('next');
+      if (e.key === 'ArrowLeft') goPage('prev');
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showIntro, goPage]);
+
   const handleInitAdmin = async () => {
     setIsInitializing(true);
     try {
       const { data, error } = await supabase.functions.invoke('ensure-admin');
       if (error) throw error;
-      if (data?.success) {
-        toast.success(data.message || 'Khởi tạo admin thành công!');
-      } else {
-        toast.error(data?.error || 'Có lỗi xảy ra');
-      }
+      if (data?.success) toast.success(data.message || 'Khởi tạo admin thành công!');
+      else toast.error(data?.error || 'Có lỗi xảy ra');
     } catch (error: any) {
-      console.error('Error initializing admin:', error);
       toast.error('Lỗi kết nối: ' + (error.message || 'Không thể khởi tạo admin'));
     } finally {
       setIsInitializing(false);
@@ -95,257 +109,286 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b bg-primary text-primary-foreground sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+      {/* ─── Navbar ─── */}
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img src={uehLogo} alt="UEH logo" className="h-8 w-auto drop-shadow-md" loading="lazy" />
-            <div className="hidden sm:block h-8 w-px bg-primary-foreground/30" />
-            <span className="hidden sm:block font-heading font-semibold text-lg">Teamworks UEH</span>
+            <img src={uehLogo} alt="UEH" className="h-7 w-auto" loading="lazy" />
+            <div className="hidden sm:block h-5 w-px bg-border" />
+            <span className="hidden sm:block text-sm font-semibold tracking-tight text-foreground">
+              Teamworks
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
+          <div className="flex items-center gap-3">
+            <button
               onClick={handleInitAdmin}
               disabled={isInitializing}
-              className="text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 text-xs gap-1 h-8 px-2"
-              title="Khởi tạo tài khoản Admin"
+              className="text-muted-foreground hover:text-foreground transition-colors p-1.5"
+              title="Init Admin"
             >
-              {isInitializing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Shield className="w-3 h-3" />}
-              <span className="hidden sm:inline">Init</span>
-            </Button>
+              {isInitializing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
+            </button>
             <Link to="/auth">
-              <Button variant="secondary" className="font-medium">
+              <button className="relative text-sm font-medium text-foreground px-4 py-2 border border-foreground/20 hover:border-foreground/60 transition-all duration-300 tracking-wide group">
                 Đăng nhập
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+                <span className="absolute bottom-0 left-0 h-px w-0 bg-foreground group-hover:w-full transition-all duration-300" />
+              </button>
             </Link>
           </div>
         </div>
       </header>
 
-      {/* Sub-header */}
-      <div className="bg-primary/90 text-primary-foreground border-b border-primary/40">
-        <div className="container mx-auto px-4 py-2 flex flex-col md:flex-row items-center justify-between gap-2 text-xs md:text-sm">
-          <span className="font-medium">Liên hệ Leader phụ trách hệ thống:</span>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span>Họ tên: <span className="font-semibold">Nguyễn Hoàng Khánh</span></span>
-            <span>Email: <span className="font-semibold">khanhngh.ueh@gmail.com</span></span>
-          </div>
+      {/* ─── Contact strip ─── */}
+      <div className="border-b border-border/30 bg-muted/30">
+        <div className="container mx-auto px-6 py-2 flex flex-col md:flex-row items-center justify-between gap-1 text-xs text-muted-foreground">
+          <span>Leader phụ trách: <span className="font-medium text-foreground">Nguyễn Hoàng Khánh</span></span>
+          <span>khanhngh.ueh@gmail.com</span>
         </div>
       </div>
 
-      {/* Hero */}
-      <main className="flex-1 flex items-center">
-        <section className="w-full py-12 md:py-20">
-          <div className="container mx-auto px-4">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              {/* Left */}
-              <div className="space-y-6 animate-fade-in">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-sm font-medium">
-                  <Users className="w-4 h-4" />
+      {/* ─── Hero ─── */}
+      <main className="flex-1 flex items-center relative overflow-hidden">
+        {/* Subtle ambient light */}
+        <div className="absolute top-1/2 left-1/4 -translate-y-1/2 w-[600px] h-[600px] bg-primary/[0.03] rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/3 right-1/4 w-[400px] h-[400px] bg-accent/[0.03] rounded-full blur-3xl pointer-events-none" />
+
+        <section className="w-full py-16 md:py-24 relative z-10">
+          <div className="container mx-auto px-6">
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
+              {/* Left — Copy */}
+              <div className="space-y-8" style={{ animation: 'fade-in 0.6s ease-out both' }}>
+                <div className="inline-flex items-center gap-2 text-xs font-medium tracking-widest uppercase text-muted-foreground">
+                  <span className="w-8 h-px bg-muted-foreground/40" />
                   Dành cho sinh viên UEH
                 </div>
 
-                <h1 className="font-heading text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
-                  Effective Team{' '}
-                  <span className="text-gradient">Task Management System</span>
+                <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold text-foreground leading-[1.1] tracking-tight">
+                  Effective Team
+                  <br />
+                  <span className="text-primary">Task Management</span>
+                  <br />
+                  System
                 </h1>
 
-                <p className="text-lg text-muted-foreground max-w-lg">
-                  Nền tảng số giúp sinh viên quản lý công việc nhóm một cách minh bạch,
-                  công bằng với hệ thống tính điểm tự động.
+                <p className="text-base text-muted-foreground max-w-md leading-relaxed">
+                  Nền tảng số giúp sinh viên quản lý công việc nhóm
+                  minh bạch, công bằng với hệ thống tính điểm tự động.
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                  <Link to="/auth" className="w-full sm:w-auto">
-                    <Button size="lg" className="w-full text-base font-semibold px-8">
-                      Đăng nhập hệ thống
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
+                <div className="flex items-center gap-6 pt-2">
+                  <Link to="/auth">
+                    <button className="relative bg-foreground text-background px-7 py-3 text-sm font-semibold tracking-wide hover:bg-foreground/90 transition-colors duration-200 group">
+                      Đăng nhập
+                      <ArrowRight className="inline-block w-4 h-4 ml-2 transition-transform duration-200 group-hover:translate-x-0.5" />
+                    </button>
                   </Link>
                 </div>
 
-                <div className="flex gap-8 pt-8 border-t border-border/50">
-                  <div><p className="text-sm font-medium text-foreground">Đồ án Sinh viên</p></div>
-                  <div><p className="text-sm font-medium text-foreground">Mục đích Học tập</p></div>
-                  <div><p className="text-sm font-medium text-foreground">Phi thương mại</p></div>
+                <div className="flex items-center gap-6 pt-6 border-t border-border/40">
+                  {['Đồ án Sinh viên', 'Mục đích Học tập', 'Phi thương mại'].map((t, i) => (
+                    <span key={i} className="text-xs tracking-wide text-muted-foreground font-medium uppercase">
+                      {t}
+                    </span>
+                  ))}
                 </div>
               </div>
 
-              {/* Right - Animated Explore Button */}
-              <div className="hidden lg:flex items-center justify-center">
-                <button
-                  onClick={openIntro}
-                  className="group relative w-52 h-52 rounded-full flex flex-col items-center justify-center cursor-pointer focus:outline-none"
-                >
-                  {/* Animated rings */}
-                  <span className="absolute inset-0 rounded-full border-2 border-primary/20 animate-[ping_3s_ease-in-out_infinite]" />
-                  <span className="absolute inset-3 rounded-full border border-accent/30 animate-[ping_3s_ease-in-out_0.5s_infinite]" />
-                  <span className="absolute inset-6 rounded-full border border-primary/15 animate-[ping_3s_ease-in-out_1s_infinite]" />
+              {/* Right — Explore CTA */}
+              <div
+                className="hidden lg:flex items-center justify-center"
+                style={{ animation: 'fade-in 0.8s ease-out 0.2s both' }}
+              >
+                <div className="relative flex flex-col items-center gap-10">
+                  {/* Ambient glow behind */}
+                  <div className="absolute inset-0 -inset-x-16 -inset-y-8 bg-gradient-to-b from-primary/[0.04] via-transparent to-accent/[0.03] pointer-events-none" />
 
-                  {/* Core */}
-                  <div className="relative z-10 w-36 h-36 rounded-full bg-gradient-to-br from-primary via-primary/90 to-accent flex flex-col items-center justify-center gap-2 shadow-xl group-hover:shadow-2xl group-hover:shadow-primary/25 transition-all duration-500 group-hover:scale-110">
-                    <Sparkles className="w-8 h-8 text-primary-foreground drop-shadow-md transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110" />
-                    <span className="text-primary-foreground font-bold text-sm tracking-wide">KHÁM PHÁ</span>
-                    <ChevronRight className="w-4 h-4 text-primary-foreground/70 transition-transform duration-300 group-hover:translate-x-1" />
+                  {/* Main explore button — sharp, typographic */}
+                  <button
+                    onClick={openIntro}
+                    className="group relative z-10 overflow-hidden border border-foreground/15 hover:border-foreground/50 transition-all duration-500 px-12 py-6 cursor-pointer focus:outline-none"
+                  >
+                    {/* BG slide-up on hover */}
+                    <span className="absolute inset-0 bg-foreground translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
+
+                    <span className="relative z-10 flex flex-col items-center gap-3">
+                      <span className="text-[2rem] font-bold tracking-[0.15em] text-foreground group-hover:text-background transition-colors duration-500 uppercase">
+                        Khám phá
+                      </span>
+                      <span className="flex items-center gap-2 text-xs tracking-[0.2em] uppercase text-muted-foreground group-hover:text-background/70 transition-colors duration-500">
+                        Tìm hiểu hệ thống
+                        <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                      </span>
+                    </span>
+
+                    {/* Border draw effect — bottom line */}
+                    <span className="absolute bottom-0 left-0 h-[2px] w-0 bg-primary group-hover:w-full transition-all duration-700 ease-out" />
+                  </button>
+
+                  {/* Decorative lines */}
+                  <div className="flex items-center gap-3 text-muted-foreground/30">
+                    <span className="w-16 h-px bg-current" />
+                    <span className="text-[10px] tracking-[0.3em] uppercase font-medium">ver 5.0</span>
+                    <span className="w-16 h-px bg-current" />
                   </div>
-                </button>
+                </div>
               </div>
             </div>
           </div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t bg-primary text-primary-foreground py-6 mt-8">
-        <div className="container mx-auto px-4 space-y-4 text-sm">
+      {/* ─── Footer ─── */}
+      <footer className="border-t border-border/40 py-8">
+        <div className="container mx-auto px-6 space-y-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <img src={uehLogo} alt="UEH logo" className="h-8 w-auto" loading="lazy" />
-              <span className="text-xs md:text-sm">
-                © 2025 Teamworks UEH &mdash; Hệ thống quản lý công việc nhóm cho sinh viên UEH.
+              <img src={uehLogo} alt="UEH" className="h-6 w-auto opacity-50" loading="lazy" />
+              <span className="text-xs text-muted-foreground">
+                © 2025 Teamworks UEH
               </span>
             </div>
-            <p className="text-xs md:text-sm text-primary-foreground/90 text-center md:text-right max-w-md">
-              Teamworks hỗ trợ chia task, theo dõi tiến độ, tính điểm từng thành viên và tổng kết theo giai đoạn,
-              giúp giảng viên và sinh viên đánh giá công bằng, minh bạch.
+            <p className="text-xs text-muted-foreground text-center md:text-right max-w-sm leading-relaxed">
+              Hỗ trợ chia task, theo dõi tiến độ, tính điểm và tổng kết — đánh giá công bằng, minh bạch.
             </p>
           </div>
-          <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-xs md:text-sm text-primary-foreground/90">
-            <span>Đơn vị: Trường Đại học Kinh tế TP. Hồ Chí Minh (UEH).</span>
-            <span>Góp ý &amp; báo lỗi hệ thống: <span className="font-semibold">khanhngh.ueh@gmail.com</span></span>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground/60">
+            <span>Trường Đại học Kinh tế TP. Hồ Chí Minh (UEH)</span>
+            <span>Góp ý: khanhngh.ueh@gmail.com</span>
           </div>
         </div>
       </footer>
 
-      {/* Intro Overlay - 16:9 multi-page */}
+      {/* ─── Intro Overlay — 16:9 multi-page ─── */}
       {showIntro && (
         <div
           className={`fixed inset-0 z-[100] flex items-center justify-center transition-all duration-[400ms] ${
-            introVisible ? 'bg-black/60 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-none'
+            introVisible ? 'bg-black/50 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-none'
           }`}
           onClick={closeIntro}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`bg-background rounded-xl overflow-hidden flex flex-col shadow-2xl transition-all duration-500 ease-out ${
-              introVisible
-                ? 'opacity-100 scale-100 translate-y-0'
-                : 'opacity-0 scale-95 translate-y-8'
+            className={`bg-background overflow-hidden flex flex-col shadow-2xl transition-all duration-500 ease-out ${
+              introVisible ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-[0.97] translate-y-4'
             }`}
             style={{ width: '1280px', maxWidth: '95vw', height: '720px', maxHeight: '90vh' }}
           >
-            {/* Header bar */}
-            <div className="relative overflow-hidden flex-shrink-0">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/90 to-accent opacity-95" />
-              <div className="relative px-6 py-4 text-primary-foreground flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary-foreground/15 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold">Giới thiệu Teamworks UEH</h2>
-                    <p className="text-primary-foreground/70 text-xs">Trang {currentPage + 1} / {introPages.length}</p>
-                  </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-8 py-5 border-b border-border/40 flex-shrink-0">
+              <div className="flex items-center gap-4">
+                <img src={uehLogo} alt="UEH" className="h-6 w-auto" />
+                <div className="h-4 w-px bg-border" />
+                <div>
+                  <h2 className="text-sm font-bold tracking-tight">Giới thiệu Teamworks UEH</h2>
+                  <p className="text-[11px] text-muted-foreground">
+                    Trang {currentPage + 1} / {introPages.length}
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  {/* Page dots */}
-                  <div className="flex gap-1.5">
-                    {introPages.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setCurrentPage(i)}
-                        className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                          i === currentPage
-                            ? 'bg-primary-foreground w-6'
-                            : 'bg-primary-foreground/30 hover:bg-primary-foreground/50'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <button
-                    onClick={closeIntro}
-                    className="w-8 h-8 rounded-full bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors flex items-center justify-center"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+              </div>
+              <div className="flex items-center gap-4">
+                {/* Page indicators */}
+                <div className="flex gap-1">
+                  {introPages.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setPageDirection(i > currentPage ? 'next' : 'prev'); setCurrentPage(i); }}
+                      className={`h-1 transition-all duration-300 ${
+                        i === currentPage
+                          ? 'bg-foreground w-8'
+                          : 'bg-foreground/15 hover:bg-foreground/30 w-4'
+                      }`}
+                    />
+                  ))}
                 </div>
+                <button
+                  onClick={closeIntro}
+                  className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            {/* Page content */}
+            {/* Page body */}
             <div className="flex-1 overflow-y-auto">
-              {(() => {
-                const page = introPages[currentPage];
-                return (
-                  <div key={currentPage} className="p-8 h-full flex flex-col animate-fade-in">
-                    {/* Page title */}
-                    <div className="mb-6 space-y-1">
-                      <h3 className="text-2xl font-bold text-foreground">{page.title}</h3>
-                      <p className="text-muted-foreground">{page.subtitle}</p>
-                    </div>
-
-                    {/* Feature cards */}
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {page.content.map((item, i) => (
-                        <div
-                          key={i}
-                          className="group rounded-xl border border-border/60 bg-muted/30 p-5 transition-all duration-300 hover:shadow-md hover:bg-muted/50 hover:-translate-y-0.5"
-                          style={{
-                            animation: `fade-in 0.4s ease-out ${i * 100}ms both`,
-                          }}
-                        >
-                          <div className="flex items-start gap-4">
-                            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/15 to-accent/10 shadow-sm flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-                              <item.icon className="w-5 h-5 text-primary" />
-                            </div>
-                            <div className="space-y-1.5 min-w-0 flex-1">
-                              <h4 className="font-semibold text-foreground text-sm">{item.label}</h4>
-                              <p className="text-sm text-muted-foreground leading-relaxed">{item.text}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+              <div
+                key={currentPage}
+                className="p-8 lg:p-10 h-full flex flex-col"
+                style={{
+                  animation: pageDirection === 'next'
+                    ? 'slide-in-from-right 0.35s ease-out both'
+                    : 'slide-in-from-left 0.35s ease-out both',
+                }}
+              >
+                {/* Title */}
+                <div className="mb-8 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <span className="w-8 h-px bg-primary" />
+                    <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-primary">
+                      {String(currentPage + 1).padStart(2, '0')}
+                    </span>
                   </div>
-                );
-              })()}
+                  <h3 className="text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+                    {introPages[currentPage].title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {introPages[currentPage].subtitle}
+                  </p>
+                </div>
+
+                {/* Cards */}
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {introPages[currentPage].content.map((item, i) => (
+                    <div
+                      key={i}
+                      className="group border border-border/50 p-6 transition-all duration-300 hover:border-foreground/20 hover:bg-muted/30"
+                      style={{
+                        animation: `fade-in 0.4s ease-out ${i * 80 + 100}ms both`,
+                      }}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-9 h-9 border border-border/60 flex items-center justify-center flex-shrink-0 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
+                          <item.icon className="w-4 h-4" />
+                        </div>
+                        <div className="space-y-2 min-w-0 flex-1">
+                          <h4 className="text-sm font-semibold text-foreground tracking-tight">{item.label}</h4>
+                          <p className="text-xs text-muted-foreground leading-relaxed">{item.text}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Footer nav */}
-            <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/30 flex-shrink-0">
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <img src={uehLogo} alt="UEH" className="h-5 w-auto opacity-50" />
-                <span>Đồ án sinh viên • Phi thương mại</span>
-              </div>
+            <div className="flex items-center justify-between px-8 py-4 border-t border-border/40 flex-shrink-0">
+              <span className="text-[11px] text-muted-foreground/50 tracking-wide">
+                Đồ án sinh viên · Phi thương mại
+              </span>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
+                <button
                   disabled={currentPage === 0}
-                  onClick={() => setCurrentPage((p) => p - 1)}
-                  className="gap-1"
+                  onClick={() => goPage('prev')}
+                  className="flex items-center gap-1.5 text-xs font-medium px-4 py-2 border border-border/50 text-muted-foreground hover:text-foreground hover:border-foreground/30 disabled:opacity-30 disabled:pointer-events-none transition-all duration-200"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5" />
                   Trước
-                </Button>
+                </button>
                 {currentPage < introPages.length - 1 ? (
-                  <Button
-                    size="sm"
-                    onClick={() => setCurrentPage((p) => p + 1)}
-                    className="gap-1"
+                  <button
+                    onClick={() => goPage('next')}
+                    className="flex items-center gap-1.5 text-xs font-medium px-4 py-2 bg-foreground text-background hover:bg-foreground/90 transition-colors duration-200"
                   >
                     Tiếp theo
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
                 ) : (
                   <Link to="/auth" onClick={closeIntro}>
-                    <Button size="sm" className="gap-1 shadow-md">
+                    <button className="flex items-center gap-1.5 text-xs font-medium px-4 py-2 bg-foreground text-background hover:bg-foreground/90 transition-colors duration-200">
                       Bắt đầu sử dụng
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </Link>
                 )}
               </div>
@@ -353,6 +396,18 @@ export default function Landing() {
           </div>
         </div>
       )}
+
+      {/* Animations */}
+      <style>{`
+        @keyframes slide-in-from-right {
+          from { opacity: 0; transform: translateX(24px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slide-in-from-left {
+          from { opacity: 0; transform: translateX(-24px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
     </div>
   );
 }
