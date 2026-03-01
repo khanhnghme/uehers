@@ -39,6 +39,7 @@ import {
   Mail,
   GraduationCap,
   MessageSquare,
+  ImagePlus,
 } from 'lucide-react';
 import type { Group, GroupMember } from '@/types/database';
 
@@ -69,6 +70,8 @@ export default function Groups() {
   const [newGroupInstructorEmail, setNewGroupInstructorEmail] = useState('');
   const [newGroupZaloLink, setNewGroupZaloLink] = useState('');
   const [newGroupAdditionalInfo, setNewGroupAdditionalInfo] = useState('');
+  const [groupImage, setGroupImage] = useState<File | null>(null);
+  const [groupImagePreview, setGroupImagePreview] = useState<string | null>(null);
 
   // Member adding
   const [memberSearch, setMemberSearch] = useState('');
@@ -178,6 +181,17 @@ export default function Groups() {
     setSelectedMembers((prev) => prev.filter((p) => p.id !== id));
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Lỗi', description: 'Ảnh không được vượt quá 5MB', variant: 'destructive' });
+      return;
+    }
+    setGroupImage(file);
+    setGroupImagePreview(URL.createObjectURL(file));
+  };
+
   const resetForm = () => {
     setNewGroupName('');
     setNewGroupDescription('');
@@ -186,6 +200,8 @@ export default function Groups() {
     setNewGroupInstructorEmail('');
     setNewGroupZaloLink('');
     setNewGroupAdditionalInfo('');
+    setGroupImage(null);
+    setGroupImagePreview(null);
     setSelectedMembers([]);
     setMemberSearch('');
     setSearchResults([]);
@@ -221,6 +237,21 @@ export default function Groups() {
         .single();
 
       if (groupError) throw groupError;
+
+      // Upload image if selected
+      if (groupImage) {
+        const ext = groupImage.name.split('.').pop();
+        const filePath = `${newGroup.id}/cover.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from('group-images')
+          .upload(filePath, groupImage, { upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('group-images')
+            .getPublicUrl(filePath);
+          await supabase.from('groups').update({ image_url: urlData.publicUrl }).eq('id', newGroup.id);
+        }
+      }
 
       // Add creator as leader
       const { error: memberError } = await supabase.from('group_members').insert({
@@ -336,17 +367,56 @@ export default function Groups() {
                           Thông tin dự án
                         </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="group-name" className="flex items-center gap-1">
-                            Tên dự án <span className="text-destructive">*</span>
-                          </Label>
-                          <Input
-                            id="group-name"
-                            placeholder="VD: Đồ án môn học CNTT"
-                            value={newGroupName}
-                            onChange={(e) => setNewGroupName(e.target.value)}
-                            className="text-base"
-                          />
+                        <div className="flex gap-4 items-start">
+                          <div className="flex-1 space-y-2">
+                            <Label htmlFor="group-name" className="flex items-center gap-1">
+                              Tên dự án <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                              id="group-name"
+                              placeholder="VD: Đồ án môn học CNTT"
+                              value={newGroupName}
+                              onChange={(e) => setNewGroupName(e.target.value)}
+                              className="text-base"
+                            />
+                          </div>
+
+                          {/* Image upload compact */}
+                          <div className="space-y-1.5 flex-shrink-0">
+                            <Label className="flex items-center gap-1 text-xs">
+                              <ImagePlus className="w-3.5 h-3.5" />
+                              Ảnh bìa
+                            </Label>
+                            <label className="cursor-pointer block">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleImageSelect}
+                              />
+                              {groupImagePreview ? (
+                                <div className="relative w-20 h-20 rounded-lg overflow-hidden border group/img">
+                                  <img src={groupImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setGroupImage(null);
+                                      setGroupImagePreview(null);
+                                    }}
+                                    className="absolute inset-0 bg-black/50 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center"
+                                  >
+                                    <X className="w-4 h-4 text-white" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground">
+                                  <ImagePlus className="w-5 h-5" />
+                                  <span className="text-[10px]">Tải lên</span>
+                                </div>
+                              )}
+                            </label>
+                          </div>
                         </div>
 
                         <div className="space-y-2">
