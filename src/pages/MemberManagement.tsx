@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
 import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
+import MemberDetailDialog from '@/components/MemberDetailDialog';
 
 export default function MemberManagement() {
   const navigate = useNavigate();
@@ -53,6 +54,7 @@ export default function MemberManagement() {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -565,7 +567,7 @@ export default function MemberManagement() {
                   const isAdminMember = isMemberAdmin(member.id);
                   
                   return (
-                    <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => { setSelectedMember(member); setIsDetailDialogOpen(true); }}>
                       <UserAvatar 
                         src={member.avatar_url}
                         name={member.full_name}
@@ -599,11 +601,11 @@ export default function MemberManagement() {
                       {canManage && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9">
+                            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={(e) => e.stopPropagation()}>
                               <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenuItem onClick={() => openEditDialog(member)}>
                               <Pencil className="w-4 h-4 mr-2" />
                               Chỉnh sửa thông tin
@@ -774,6 +776,17 @@ export default function MemberManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Member Detail Dialog */}
+      <MemberDetailDialog
+        open={isDetailDialogOpen}
+        onOpenChange={(open) => {
+          setIsDetailDialogOpen(open);
+          if (!open) setSelectedMember(null);
+        }}
+        member={selectedMember}
+        systemRoles={selectedMember ? (memberRoles[selectedMember.id] || ['member']) : []}
+      />
     </DashboardLayout>
   );
 }

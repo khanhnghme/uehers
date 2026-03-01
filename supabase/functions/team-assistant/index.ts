@@ -6,7 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Usage limits - 100 words/message, quota calculated on client side
 const MAX_MESSAGE_WORDS = 100;
 
 interface TaskData {
@@ -20,6 +19,15 @@ interface TaskData {
   assignees: string[];
   isOverdue: boolean;
   daysUntilDeadline: number | null;
+}
+
+interface ResourceData {
+  name: string;
+  type: string;
+  category: string | null;
+  description: string | null;
+  linkUrl: string | null;
+  folderName: string | null;
 }
 
 interface ProjectContext {
@@ -42,6 +50,7 @@ interface ProjectContext {
     studentId: string;
   }>;
   tasks: TaskData[];
+  resources: ResourceData[];
   currentUser: {
     name: string;
     role: string;
@@ -49,7 +58,6 @@ interface ProjectContext {
   };
 }
 
-// Map internal status to user-friendly display labels
 function getStatusLabel(status: string): string {
   const statusMap: Record<string, string> = {
     'TODO': 'Chờ thực hiện',
@@ -76,7 +84,6 @@ function buildProjectContext(context: ProjectContext): string {
     !t.isOverdue
   );
   
-  // Build task list with user-friendly display (NO technical IDs)
   const taskListFormatted = context.tasks.map((t, index) => {
     const deadlineInfo = t.deadlineFormatted 
       ? (t.isOverdue 
@@ -86,13 +93,40 @@ function buildProjectContext(context: ProjectContext): string {
               : `${t.deadlineFormatted}`))
       : 'Không có deadline';
     
-    // Use display-friendly format without technical codes
     return `  ${index + 1}. "${t.title}"
      - Trạng thái: ${getStatusLabel(t.status)}
      - Giai đoạn: ${t.stageName || 'Chưa phân giai đoạn'}
      - Deadline: ${deadlineInfo}
      - Người thực hiện: ${t.assignees.length > 0 ? t.assignees.join(', ') : 'Chưa phân công'}`;
   }).join('\n');
+
+  // Build resources section
+  const resourcesByCategory = new Map<string, ResourceData[]>();
+  for (const r of context.resources) {
+    const cat = r.category || 'general';
+    if (!resourcesByCategory.has(cat)) resourcesByCategory.set(cat, []);
+    resourcesByCategory.get(cat)!.push(r);
+  }
+
+  const categoryLabels: Record<string, string> = {
+    'general': 'Chung', 'document': 'Tài liệu', 'reference': 'Tham khảo',
+    'template': 'Mẫu', 'media': 'Đa phương tiện', 'other': 'Khác'
+  };
+
+  let resourcesFormatted = '';
+  if (context.resources.length > 0) {
+    const lines: string[] = [];
+    for (const [cat, items] of resourcesByCategory) {
+      lines.push(`  [${categoryLabels[cat] || cat}]`);
+      for (const r of items) {
+        const typeLabel = r.type === 'link' ? '🔗 Link' : '📄 File';
+        const folder = r.folderName ? ` (Thư mục: ${r.folderName})` : '';
+        const desc = r.description ? ` - ${r.description}` : '';
+        lines.push(`    - ${typeLabel}: "${r.name}"${desc}${folder}`);
+      }
+    }
+    resourcesFormatted = lines.join('\n');
+  }
 
   return `
 === DỰ ÁN: ${context.project.name} ===
@@ -115,6 +149,9 @@ Tổng: ${context.tasks.length} công việc
 
 --- DANH SÁCH CÔNG VIỆC ---
 ${taskListFormatted || '(Chưa có công việc nào)'}
+
+--- TÀI NGUYÊN DỰ ÁN (${context.resources.length} mục) ---
+${resourcesFormatted || '(Chưa có tài nguyên nào)'}
 
 --- LƯU Ý ---
 ${overdueTasks.length > 0 
@@ -182,12 +219,13 @@ ${projectContexts.join('\n---\n')}` : '## Người dùng chưa tham gia dự án
 3. ✅ Trạng thái PHẢI dùng đúng cách hiển thị: "Chờ thực hiện", "Đang thực hiện", "Hoàn thành", "Đã duyệt"
 4. ✅ Deadline ghi đúng định dạng: ngày/tháng/năm – giờ:phút (ví dụ: 20/01/2026 – 23:59)
 5. ✅ Trả lời ngắn gọn, rõ ràng, giống như đọc lại giao diện cho người dùng
+6. ✅ Khi được hỏi về tài nguyên: liệt kê tên, loại (file/link), thư mục, mô tả
 
 ## VÍ DỤ TRẢ LỜI ĐÚNG
 - "Bạn có 2 công việc được giao: 'Viết báo cáo' và 'Thiết kế slide'"
 - "Công việc 'Viết báo cáo' có deadline 20/01/2026 – 23:59, trạng thái: Đang thực hiện"
-- "Hiện tại nhóm có 3 công việc đang thực hiện và 1 công việc đã hoàn thành"
-- "Không tìm thấy công việc nào tên 'XYZ' trong dự án này"
+- "Dự án có 3 tài nguyên: 'Bảng phân công' (file), 'Tài liệu tham khảo' (link), 'Mẫu báo cáo' (file)"
+- "Không tìm thấy tài nguyên nào tên 'XYZ' trong dự án này"
 
 ## VÍ DỤ TRẢ LỜI SAI (KHÔNG ĐƯỢC LÀM)
 - ❌ "Task [#abc123] có status IN_PROGRESS" → phải viết: "Công việc 'Tên task' đang thực hiện"
@@ -208,7 +246,6 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Validate message word count
     const lastMessage = messages?.[messages.length - 1];
     if (lastMessage?.content) {
       const wordCount = lastMessage.content.trim().split(/\s+/).filter((w: string) => w.length > 0).length;
@@ -225,11 +262,8 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
-    // Use service role to bypass RLS for AI queries
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user from auth header
     const authHeader = req.headers.get("Authorization");
     let userId: string | null = null;
     let userEmail: string | null = null;
@@ -246,7 +280,6 @@ serve(async (req) => {
       }
     }
 
-    // Get user profile
     let userName = userEmail || "Người dùng";
     if (userId) {
       const { data: profile } = await supabase
@@ -259,12 +292,10 @@ serve(async (req) => {
       }
     }
 
-    // Build project contexts
     const projectContexts: string[] = [];
     let isProjectSpecific = false;
     let currentProjectName: string | undefined;
 
-    // If projectId is provided, fetch that specific project only
     if (projectId && userId) {
       isProjectSpecific = true;
       const context = await fetchProjectContext(supabase, projectId, userId);
@@ -273,16 +304,13 @@ serve(async (req) => {
         projectContexts.push(buildProjectContext(context));
       }
     } else if (userId) {
-      // Fetch all projects user is a member of (general context)
       const { data: memberships } = await supabase
         .from('group_members')
         .select('group_id')
         .eq('user_id', userId);
 
       if (memberships && memberships.length > 0) {
-        // Limit to 5 most recent projects for performance
         const projectIds = memberships.slice(0, 5).map(m => m.group_id);
-        
         for (const pId of projectIds) {
           const context = await fetchProjectContext(supabase, pId, userId);
           if (context) {
@@ -294,7 +322,6 @@ serve(async (req) => {
 
     const systemPrompt = buildSystemPrompt(userName, projectContexts, isProjectSpecific, currentProjectName);
 
-    // Call Lovable AI Gateway with streaming
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -308,7 +335,7 @@ serve(async (req) => {
           ...messages,
         ],
         stream: true,
-        temperature: 0.3, // Lower temperature for more accurate responses
+        temperature: 0.3,
       }),
     });
 
@@ -358,7 +385,6 @@ async function fetchProjectContext(
 ): Promise<ProjectContext | null> {
   const now = new Date();
 
-  // Fetch project
   const { data: project } = await supabase
     .from('groups')
     .select('*')
@@ -367,14 +393,12 @@ async function fetchProjectContext(
 
   if (!project) return null;
 
-  // Fetch stages
   const { data: stages } = await supabase
     .from('stages')
     .select('*')
     .eq('group_id', projectId)
     .order('order_index');
 
-  // Fetch members with profiles
   const { data: members } = await supabase
     .from('group_members')
     .select('*')
@@ -388,7 +412,6 @@ async function fetchProjectContext(
 
   const profilesMap = new Map(profiles?.map((p: any) => [p.id, p]) || []);
 
-  // Fetch tasks with assignments - include short_id
   const { data: tasks } = await supabase
     .from('tasks')
     .select('*')
@@ -400,6 +423,23 @@ async function fetchProjectContext(
     .from('task_assignments')
     .select('*')
     .in('task_id', taskIds.length > 0 ? taskIds : ['none']);
+
+  // Fetch project resources with folders
+  const { data: resources } = await supabase
+    .from('project_resources')
+    .select('name, resource_type, category, description, link_url, folder_id')
+    .eq('group_id', projectId)
+    .order('created_at', { ascending: true });
+
+  const folderIds = [...new Set((resources || []).filter((r: any) => r.folder_id).map((r: any) => r.folder_id))];
+  let foldersMap = new Map<string, string>();
+  if (folderIds.length > 0) {
+    const { data: folders } = await supabase
+      .from('resource_folders')
+      .select('id, name')
+      .in('id', folderIds);
+    foldersMap = new Map((folders || []).map((f: any) => [f.id, f.name]));
+  }
 
   const stageMap = new Map(stages?.map((s: any) => [s.id, s.name]) || []);
 
@@ -463,10 +503,17 @@ async function fetchProjectContext(
         daysUntilDeadline,
       };
     }),
+    resources: (resources || []).map((r: any) => ({
+      name: r.name,
+      type: r.resource_type,
+      category: r.category,
+      description: r.description,
+      linkUrl: r.link_url,
+      folderName: r.folder_id ? foldersMap.get(r.folder_id) || null : null,
+    })),
     currentUser: {
       name: (profilesMap.get(userId) as any)?.full_name || 'Người dùng',
       role: members?.find((m: any) => m.user_id === userId)?.role || 'member',
-      // Display task titles only, no technical IDs
       assignedTasks: (tasks || [])
         .filter((t: any) => assignments?.some((a: any) => a.task_id === t.id && a.user_id === userId))
         .map((t: any) => `"${t.title}"`),
