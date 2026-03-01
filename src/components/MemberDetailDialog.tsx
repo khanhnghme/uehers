@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   User, Mail, GraduationCap, BookOpen, Phone, Sparkles, FileText,
   Shield, UserCheck, Briefcase, Clock, CheckCircle2, AlertCircle, Loader2,
-  Calendar, Hash, IdCard, Activity
+  Calendar, Hash, IdCard, Activity, Lock
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
 
@@ -56,6 +56,36 @@ export default function MemberDetailDialog({
   const [tasks, setTasks] = useState<TaskInfo[]>([]);
   const [scores, setScores] = useState<ScoreInfo[]>([]);
   const [loading, setLoading] = useState(false);
+  const [suspensionTimeLeft, setSuspensionTimeLeft] = useState('');
+
+  const isSuspended = member?.suspended_until
+    ? new Date(member.suspended_until).getTime() > Date.now()
+    : false;
+  const isPermanentSuspension = member?.suspended_until
+    ? new Date(member.suspended_until).getFullYear() >= 2099
+    : false;
+
+  useEffect(() => {
+    if (!isSuspended || !member?.suspended_until) return;
+    const update = () => {
+      const diff = new Date(member.suspended_until!).getTime() - Date.now();
+      if (diff <= 0) { setSuspensionTimeLeft('Hết hạn'); return; }
+      if (isPermanentSuspension) { setSuspensionTimeLeft('Vĩnh viễn'); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      const parts: string[] = [];
+      if (d > 0) parts.push(`${d}d`);
+      if (h > 0) parts.push(`${h}h`);
+      if (m > 0) parts.push(`${m}m`);
+      parts.push(`${s}s`);
+      setSuspensionTimeLeft(parts.join(' '));
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [member?.suspended_until, isSuspended, isPermanentSuspension]);
 
   useEffect(() => {
     if (open && member) {
@@ -185,6 +215,12 @@ export default function MemberDetailDialog({
                     Chưa đổi MK
                   </Badge>
                 )}
+                {isSuspended && (
+                  <Badge variant="destructive" className="text-xs gap-1">
+                    <Lock className="w-3 h-3" />
+                    Đã khóa — {suspensionTimeLeft}
+                  </Badge>
+                )}
               </div>
               {/* Quick Stats */}
               <div className="flex gap-4 mt-3 text-xs">
@@ -259,6 +295,42 @@ export default function MemberDetailDialog({
                         <FileText className="w-3.5 h-3.5" /> Giới thiệu bản thân
                       </p>
                       <p className="text-sm whitespace-pre-wrap bg-muted/30 rounded-lg p-3">{member.bio}</p>
+                    </div>
+                  </>
+                )}
+                {isSuspended && (
+                  <>
+                    <Separator className="my-4" />
+                    <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-destructive flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5" /> Trạng thái khóa tài khoản
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Thời gian còn lại</p>
+                          <p className="font-bold font-mono text-foreground">{suspensionTimeLeft}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Khóa từ</p>
+                          <p className="font-medium text-foreground">
+                            {member.suspended_at ? new Date(member.suspended_at).toLocaleString('vi-VN') : '—'}
+                          </p>
+                        </div>
+                        {!isPermanentSuspension && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Mở khóa lúc</p>
+                            <p className="font-medium text-foreground">
+                              {new Date(member.suspended_until!).toLocaleString('vi-VN')}
+                            </p>
+                          </div>
+                        )}
+                        {member.suspension_reason && (
+                          <div className="col-span-2">
+                            <p className="text-xs text-muted-foreground">Lý do</p>
+                            <p className="text-foreground">{member.suspension_reason}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

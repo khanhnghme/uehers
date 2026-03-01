@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Lock, Clock, Mail, LogOut } from 'lucide-react';
+import { Lock, Clock, Mail, LogOut, ShieldAlert } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import uehLogo from '@/assets/ueh-logo.png';
 
 interface SuspendedScreenProps {
   suspendedUntil: string;
@@ -10,6 +10,8 @@ interface SuspendedScreenProps {
   onSignOut: () => void;
   onUnlocked: () => void;
 }
+
+const ADMIN_EMAIL = 'khanhngh.ueh@gmail.com';
 
 export default function SuspendedScreen({ suspendedUntil, suspensionReason, onSignOut, onUnlocked }: SuspendedScreenProps) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -49,7 +51,6 @@ export default function SuspendedScreen({ suspendedUntil, suspensionReason, onSi
     return () => clearInterval(interval);
   }, [suspendedUntil, isPermanent, onUnlocked]);
 
-  // Also periodically re-check DB to see if admin unlocked early
   useEffect(() => {
     const check = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -63,56 +64,102 @@ export default function SuspendedScreen({ suspendedUntil, suspensionReason, onSi
         onUnlocked();
       }
     };
-    const interval = setInterval(check, 30000); // check every 30s
+    const interval = setInterval(check, 30000);
     return () => clearInterval(interval);
   }, [onUnlocked]);
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg border-destructive/30 shadow-xl">
-        <CardContent className="pt-8 pb-8 px-8 text-center space-y-6">
-          <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-            <Lock className="w-10 h-10 text-destructive" />
-          </div>
+    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(135deg, #003366 0%, #00508F 30%, #0066B3 60%, #004D80 100%)' }}>
+      {/* Header */}
+      <header className="py-4 px-6 flex items-center justify-center">
+        <img src={uehLogo} alt="UEH Logo" className="h-12 object-contain brightness-0 invert" />
+      </header>
 
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Tài khoản bị tạm khóa</h1>
-            <p className="text-muted-foreground mt-2">
-              Tài khoản của bạn đã bị tạm khóa bởi quản trị viên.
-            </p>
-          </div>
+      {/* Main */}
+      <main className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <div className="bg-card/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
+            {/* Red warning strip */}
+            <div className="h-1.5" style={{ background: 'linear-gradient(90deg, #DC2626, #B91C1C)' }} />
 
-          {suspensionReason && (
-            <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4 text-left">
-              <p className="text-sm font-medium text-destructive mb-1">Lý do:</p>
-              <p className="text-sm text-foreground">{suspensionReason}</p>
+            <div className="pt-8 pb-8 px-8 text-center space-y-6">
+              {/* Icon */}
+              <div className="relative mx-auto w-24 h-24">
+                <div className="absolute inset-0 rounded-full animate-pulse" style={{ background: 'rgba(220, 38, 38, 0.1)' }} />
+                <div className="relative w-24 h-24 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.15), rgba(220, 38, 38, 0.05))' }}>
+                  <ShieldAlert className="w-12 h-12" style={{ color: '#DC2626' }} />
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Tài khoản bị tạm khóa</h1>
+                <p className="text-muted-foreground mt-2 text-sm">
+                  Tài khoản của bạn đã bị tạm khóa bởi quản trị viên hệ thống Teamworks UEH.
+                </p>
+              </div>
+
+              {/* Reason */}
+              {suspensionReason && (
+                <div className="rounded-xl p-4 text-left border" style={{ background: 'rgba(220, 38, 38, 0.04)', borderColor: 'rgba(220, 38, 38, 0.15)' }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#DC2626' }}>Lý do khóa</p>
+                  <p className="text-sm text-foreground leading-relaxed">{suspensionReason}</p>
+                </div>
+              )}
+
+              {/* Countdown */}
+              <div className="rounded-xl p-5 space-y-3" style={{ background: 'linear-gradient(135deg, rgba(0, 51, 102, 0.06), rgba(0, 102, 179, 0.04))' }}>
+                <div className="flex items-center justify-center gap-2">
+                  <Clock className="w-4 h-4" style={{ color: '#003366' }} />
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#003366' }}>Thời gian còn lại</span>
+                </div>
+                <p className="text-3xl font-bold font-mono text-foreground tracking-tight">{timeLeft}</p>
+                {!isPermanent && (
+                  <p className="text-xs text-muted-foreground">
+                    Mở khóa lúc: {new Date(suspendedUntil).toLocaleString('vi-VN')}
+                  </p>
+                )}
+              </div>
+
+              {/* Contact Admin */}
+              <div className="rounded-xl p-4 text-left border" style={{ background: 'rgba(0, 51, 102, 0.04)', borderColor: 'rgba(0, 51, 102, 0.15)' }}>
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(0, 51, 102, 0.1)' }}>
+                    <Mail className="w-5 h-5" style={{ color: '#003366' }} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Cần hỗ trợ?</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Liên hệ Admin hệ thống để được hỗ trợ mở khóa tài khoản:
+                    </p>
+                    <a
+                      href={`mailto:${ADMIN_EMAIL}`}
+                      className="inline-flex items-center gap-1.5 mt-2 text-sm font-medium hover:underline"
+                      style={{ color: '#0066B3' }}
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      {ADMIN_EMAIL}
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sign out */}
+              <Button variant="outline" onClick={onSignOut} className="gap-2 w-full">
+                <LogOut className="w-4 h-4" />
+                Đăng xuất
+              </Button>
             </div>
-          )}
 
-          <div className="bg-muted rounded-lg p-4 space-y-2">
-            <div className="flex items-center justify-center gap-2 text-muted-foreground">
-              <Clock className="w-4 h-4" />
-              <span className="text-sm font-medium">Thời gian còn lại</span>
-            </div>
-            <p className="text-2xl font-bold font-mono text-foreground">{timeLeft}</p>
-          </div>
-
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex items-start gap-3 text-left">
-            <Mail className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-foreground">Cần hỗ trợ?</p>
-              <p className="text-muted-foreground mt-1">
-                Vui lòng liên hệ Admin hệ thống để được hỗ trợ mở khóa tài khoản.
+            {/* Footer */}
+            <div className="border-t px-8 py-3 text-center">
+              <p className="text-xs text-muted-foreground">
+                © 2025 Teamworks UEH — Đại học Kinh tế TP. Hồ Chí Minh
               </p>
             </div>
           </div>
-
-          <Button variant="outline" onClick={onSignOut} className="gap-2">
-            <LogOut className="w-4 h-4" />
-            Đăng xuất
-          </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </main>
     </div>
   );
 }
