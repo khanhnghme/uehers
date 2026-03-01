@@ -150,7 +150,7 @@ export default function MemberDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="w-[95vw] max-w-[1280px] h-[min(720px,90vh)] aspect-video flex flex-col p-0 gap-0 overflow-hidden" style={{ maxHeight: 'min(720px, 90vh)', minHeight: 'min(720px, 90vh)' }}>
         {/* Header Banner */}
         <div className="bg-gradient-to-r from-primary/15 via-primary/10 to-accent/10 px-6 pt-6 pb-4">
           <DialogHeader className="mb-0">
@@ -224,7 +224,7 @@ export default function MemberDetailDialog({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 min-h-0" style={{ maxHeight: 'calc(90vh - 260px)' }}>
+          <ScrollArea className="flex-1 min-h-0 overflow-auto">
             <div className="p-6">
               <TabsContent value="info" className="mt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
