@@ -5,7 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { 
   Download, Upload, FolderArchive, Settings, File, MessageSquare, 
   FileText, MessageCircle, FolderOpen, History, Award, Bug, 
-  HelpCircle, Shield, AlertTriangle, CheckCircle 
+  HelpCircle, Shield, AlertTriangle, CheckCircle, Database,
+  Clock, Zap, Lock
 } from 'lucide-react';
 
 export default function AdminBackup() {
@@ -40,16 +41,29 @@ export default function AdminBackup() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              Sao lưu & Khôi phục
-              <span className="text-xs font-normal text-amber-600 bg-amber-500/10 px-2 py-1 rounded-full">v5.0</span>
-            </h1>
-            <p className="text-muted-foreground">Quản lý sao lưu và khôi phục dữ liệu project</p>
-          </div>
-          <AdminBackupRestore />
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            Sao lưu & Khôi phục
+            <span className="text-xs font-normal text-amber-600 bg-amber-500/10 px-2 py-1 rounded-full">v5.0</span>
+          </h1>
+          <p className="text-muted-foreground">Quản lý sao lưu và khôi phục dữ liệu project</p>
         </div>
+
+        {/* CTA Button - prominent */}
+        <Card className="border-primary/30 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 overflow-hidden relative">
+          <CardContent className="pt-6 pb-6 flex items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center">
+                <FolderArchive className="w-7 h-7 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Bắt đầu sao lưu hoặc khôi phục</h2>
+                <p className="text-sm text-muted-foreground">Chọn project, tùy chỉnh nội dung và xuất/nhập dữ liệu toàn diện</p>
+              </div>
+            </div>
+            <AdminBackupRestore />
+          </CardContent>
+        </Card>
 
         {/* Info cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -69,7 +83,7 @@ export default function AdminBackup() {
               <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                 <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
                 <div className="text-xs text-muted-foreground">
-                  <p className="font-medium mb-2 text-foreground">Hỗ trợ sao lưu:</p>
+                  <p className="font-medium mb-2 text-foreground">Nội dung được sao lưu:</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                     {backupFeatures.map(({ icon: Icon, label }, i) => (
                       <span key={i} className="flex items-center gap-1.5">
@@ -111,6 +125,114 @@ export default function AdminBackup() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Features highlights */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="pt-5 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                <Database className="w-4 h-4 text-blue-500" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold mb-1">Sao lưu toàn diện</h4>
+                <p className="text-xs text-muted-foreground">Hỗ trợ 12+ loại dữ liệu bao gồm task, tin nhắn, điểm số, file đính kèm và nhật ký hoạt động.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-5 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                <Shield className="w-4 h-4 text-purple-500" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold mb-1">Kiểm tra toàn vẹn</h4>
+                <p className="text-xs text-muted-foreground">Tự động kiểm tra checksum và đối chiếu số lượng bản ghi trước khi khôi phục để đảm bảo dữ liệu chính xác.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-5 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                <Zap className="w-4 h-4 text-orange-500" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold mb-1">Theo dõi thời gian thực</h4>
+                <p className="text-xs text-muted-foreground">Hiển thị tiến trình chi tiết từng bước, cho phép hủy giữa chừng và báo cáo tổng kết sau khi hoàn tất.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* How it works */}
+        <Card>
+          <CardContent className="pt-5">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-muted-foreground" />
+              Quy trình hoạt động
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Backup flow */}
+              <div className="space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Download className="w-4 h-4 text-emerald-500" /> Sao lưu
+                </p>
+                <div className="space-y-2 pl-6 border-l-2 border-emerald-500/20">
+                  {[
+                    'Chọn project cần sao lưu',
+                    'Tùy chỉnh nội dung (tin nhắn, điểm, tài nguyên...)',
+                    'Hệ thống tải và đóng gói dữ liệu',
+                    'Kiểm tra tính toàn vẹn & tạo manifest',
+                    'Xuất file ZIP kèm báo cáo PDF minh chứng',
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-600 text-xs flex items-center justify-center flex-shrink-0 font-semibold mt-0.5">{i + 1}</span>
+                      <span className="text-xs text-muted-foreground">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Restore flow */}
+              <div className="space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-amber-500" /> Khôi phục
+                </p>
+                <div className="space-y-2 pl-6 border-l-2 border-amber-500/20">
+                  {[
+                    'Chọn file ZIP từ hệ thống sao lưu',
+                    'Kiểm tra toàn vẹn dữ liệu (checksum)',
+                    'Tạo project mới & liên kết thành viên theo MSSV',
+                    'Khôi phục task, điểm số, tin nhắn, file...',
+                    'Báo cáo tổng kết kết quả khôi phục',
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-amber-500/10 text-amber-600 text-xs flex items-center justify-center flex-shrink-0 font-semibold mt-0.5">{i + 1}</span>
+                      <span className="text-xs text-muted-foreground">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Security note */}
+        <Card className="border-border/50">
+          <CardContent className="pt-5 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+              <Lock className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold mb-1">Bảo mật & Quyền riêng tư</h4>
+              <p className="text-xs text-muted-foreground">
+                File sao lưu được tạo và tải về trực tiếp trên trình duyệt, không qua máy chủ trung gian. 
+                Chỉ Admin mới có quyền truy cập chức năng này. Dữ liệu nhạy cảm được bảo vệ theo chính sách bảo mật hệ thống.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
