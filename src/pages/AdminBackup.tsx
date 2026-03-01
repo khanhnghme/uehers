@@ -18,11 +18,13 @@ export default function AdminBackup() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Sao lưu & Khôi phục</h1>
-          <p className="text-muted-foreground">Quản lý sao lưu và khôi phục dữ liệu project</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Sao lưu & Khôi phục</h1>
+            <p className="text-muted-foreground">Quản lý sao lưu và khôi phục dữ liệu project</p>
+          </div>
+          <AdminBackupRestore />
         </div>
-        <AdminBackupRestore />
       </div>
     </DashboardLayout>
   );
