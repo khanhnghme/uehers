@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -29,7 +31,12 @@ import {
   ChevronDown,
   Shield,
   Bug,
-  HelpCircle
+  HelpCircle,
+  XCircle,
+  Clock,
+  HardDrive,
+  Package,
+  Users
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { generateProjectEvidencePdfBlob, ExportData as EvidenceExportData, ExportOptions as EvidenceExportOptions } from '@/lib/projectEvidencePdf';
@@ -255,6 +262,22 @@ interface ExportOptions {
   includeFeedbacks: boolean;
 }
 
+interface BackupReport {
+  status: 'success' | 'error';
+  projectName: string;
+  duration: number; // ms
+  recordCounts: Record<string, number>;
+  fileCount: number;
+  zipSize: number; // bytes
+  checksum?: string;
+  errors: string[];
+}
+
+interface StepInfo {
+  label: string;
+  timestamp: number;
+}
+
 export default function AdminBackupRestore() {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
@@ -265,6 +288,20 @@ export default function AdminBackupRestore() {
   const [importProgress, setImportProgress] = useState<string>('');
   const [exportProgress, setExportProgress] = useState<number>(0);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  
+  // Dialog & step tracking state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [exportStepLabel, setExportStepLabel] = useState('');
+  const [importStepLabel, setImportStepLabel] = useState('');
+  const [exportReport, setExportReport] = useState<BackupReport | null>(null);
+  const [importReport, setImportReport] = useState<BackupReport | null>(null);
+  const [exportSteps, setExportSteps] = useState<StepInfo[]>([]);
+  const [importSteps, setImportSteps] = useState<StepInfo[]>([]);
+  const [importProgressPercent, setImportProgressPercent] = useState(0);
+  const exportStartTime = useRef<number>(0);
+  const importStartTime = useRef<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     includeMessages: true,
     includeTaskNotes: true,
@@ -395,6 +432,35 @@ export default function AdminBackupRestore() {
     return Math.abs(hash).toString(36);
   };
 
+  // Step tracking helpers
+  const addExportStep = (label: string) => {
+    setExportStepLabel(label);
+    setExportSteps(prev => [...prev, { label, timestamp: Date.now() }]);
+  };
+
+  const addImportStep = (label: string, percent: number) => {
+    setImportStepLabel(label);
+    setImportProgressPercent(percent);
+    setImportSteps(prev => [...prev, { label, timestamp: Date.now() }]);
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDuration = (ms: number): string => {
+    if (ms < 1000) return `${ms}ms`;
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  };
+
   const exportProject = async () => {
     if (!selectedGroupId) {
       toast({ title: 'Lỗi', description: 'Vui lòng chọn project để sao lưu', variant: 'destructive' });
@@ -403,11 +469,16 @@ export default function AdminBackupRestore() {
 
     setIsExporting(true);
     setExportProgress(0);
+    setExportSteps([]);
+    setExportReport(null);
+    setShowExportDialog(true);
+    exportStartTime.current = Date.now();
     
     try {
       const group = groups.find(g => g.id === selectedGroupId);
       if (!group) throw new Error('Không tìm thấy project');
 
+      addExportStep('Đang tải thông tin project...');
       setExportProgress(5);
 
       // Fetch core data with pagination
@@ -417,6 +488,7 @@ export default function AdminBackupRestore() {
         paginatedFetch('tasks', [{ column: 'group_id', value: selectedGroupId }]),
       ]);
 
+      addExportStep('Đang tải hồ sơ thành viên...');
       setExportProgress(15);
 
       // Fetch profiles for members
@@ -438,6 +510,7 @@ export default function AdminBackupRestore() {
         taskIds.length > 0 ? paginatedFetch('submission_history', [{ column: 'task_id', value: taskIds, operator: 'in' }]) : [],
       ]);
 
+      addExportStep('Đang tải dữ liệu task & điểm số...');
       setExportProgress(25);
 
       // Fetch optional data based on export options
@@ -564,6 +637,7 @@ export default function AdminBackupRestore() {
 
       await Promise.all(optionalFetches);
 
+      addExportStep('Đang tải dữ liệu tùy chọn...');
       setExportProgress(35);
 
       // Fetch note attachments if task notes exist
@@ -596,6 +670,7 @@ export default function AdminBackupRestore() {
         }
       }
 
+      addExportStep('Đang kiểm tra liên kết dữ liệu...');
       setExportProgress(45);
 
       // Collect all files to download
@@ -630,6 +705,7 @@ export default function AdminBackupRestore() {
       // Remove duplicates
       const uniqueFiles = Array.from(new Map(filesToDownload.map(f => [`${f.bucket}/${f.path}`, f])).values());
 
+      addExportStep('Đang chuẩn bị dữ liệu sao lưu...');
       setExportProgress(50);
 
       // Build backup data
@@ -854,6 +930,7 @@ export default function AdminBackupRestore() {
           }))
       }));
 
+      addExportStep('Đang xử lý & đóng gói dữ liệu...');
       setExportProgress(55);
 
       // Create ZIP file with organized folder structure
@@ -918,10 +995,13 @@ export default function AdminBackupRestore() {
           }
           
           filesProcessed++;
-          setExportProgress(55 + Math.round((filesProcessed / uniqueFiles.length) * 30));
+          const fileProgress = 55 + Math.round((filesProcessed / uniqueFiles.length) * 30);
+          setExportProgress(fileProgress);
+          setExportStepLabel(`Đang tải file ${filesProcessed}/${uniqueFiles.length}...`);
         }
       }
 
+      addExportStep('Đang tạo file JSON & manifest...');
       setExportProgress(88);
 
       const backupData: BackupData = {
@@ -1011,6 +1091,7 @@ export default function AdminBackupRestore() {
       zip.file('backup.json', JSON.stringify(backupData, null, 2));
       zip.file('manifest.json', JSON.stringify(manifest, null, 2));
 
+      addExportStep('Đang tạo báo cáo PDF minh chứng...');
       setExportProgress(92);
 
       // Generate evidence PDF and add to ZIP
@@ -1057,6 +1138,7 @@ export default function AdminBackupRestore() {
         console.warn('Could not generate evidence PDF:', pdfError);
       }
 
+      addExportStep('Đang nén file ZIP...');
       setExportProgress(95);
 
       const blob = await zip.generateAsync({ type: 'blob' });
@@ -1071,30 +1153,36 @@ export default function AdminBackupRestore() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      addExportStep('Hoàn tất sao lưu!');
       setExportProgress(100);
 
-      const totalRecords = Object.values(recordCounts).reduce((a, b) => a + b, 0);
-      const stats = [
-        `${totalRecords} bản ghi`,
-        `${fileMapping.length} file`,
-        exportOptions.includeMessages ? `${messagesForBackup.length} tin nhắn` : null,
-        exportOptions.includeTaskNotes ? `${taskNotesForBackup.length} ghi chú` : null,
-        exportOptions.includeTaskComments ? `${taskCommentsForBackup.length} bình luận` : null,
-        exportOptions.includeResources ? `${resourcesForBackup.length} tài nguyên` : null,
-        exportOptions.includeFeedbacks ? `${feedbacksForBackup.length} phản hồi` : null,
-        '+ PDF minh chứng',
-      ].filter(Boolean).join(', ');
-
-      toast({ 
-        title: 'Xuất thành công!', 
-        description: `Đã sao lưu project "${group.name}" với ${stats}. Integrity checksum: ${manifest.checksum}` 
+      // Generate report
+      setExportReport({
+        status: 'success',
+        projectName: group.name,
+        duration: Date.now() - exportStartTime.current,
+        recordCounts,
+        fileCount: fileMapping.length,
+        zipSize: blob.size,
+        checksum: manifest.checksum,
+        errors: [],
       });
+
     } catch (error) {
       console.error('Export error:', error);
+      addExportStep(`Lỗi: ${String(error)}`);
+      setExportReport({
+        status: 'error',
+        projectName: groups.find(g => g.id === selectedGroupId)?.name || '',
+        duration: Date.now() - exportStartTime.current,
+        recordCounts: {},
+        fileCount: 0,
+        zipSize: 0,
+        errors: [String(error)],
+      });
       toast({ title: 'Lỗi xuất dữ liệu', description: String(error), variant: 'destructive' });
     } finally {
       setIsExporting(false);
-      setExportProgress(0);
     }
   };
 
@@ -1104,6 +1192,12 @@ export default function AdminBackupRestore() {
 
     setIsImporting(true);
     setImportProgress('Đang đọc file...');
+    setImportSteps([]);
+    setImportReport(null);
+    setImportProgressPercent(0);
+    setShowImportDialog(true);
+    importStartTime.current = Date.now();
+    addImportStep('Đang đọc file ZIP...', 2);
 
     try {
       const zip = await JSZip.loadAsync(file);
@@ -1121,7 +1215,7 @@ export default function AdminBackupRestore() {
 
       // Verify integrity if manifest exists
       if (backupData.manifest) {
-        setImportProgress('Đang kiểm tra tính toàn vẹn dữ liệu...');
+        addImportStep('Đang kiểm tra tính toàn vẹn dữ liệu...', 5);
         
         const manifest = backupData.manifest;
         const integrityIssues: string[] = [];
@@ -1166,7 +1260,7 @@ export default function AdminBackupRestore() {
         }
       }
 
-      setImportProgress('Đang tạo project mới...');
+      addImportStep('Đang tạo project mới...', 10);
 
       // Create new group
       const { data: newGroup, error: groupError } = await supabase
@@ -1204,7 +1298,7 @@ export default function AdminBackupRestore() {
         role: 'leader'
       });
 
-      setImportProgress('Đang xử lý thành viên...');
+      addImportStep('Đang xử lý thành viên...', 15);
 
       // Map student IDs to user IDs
       const studentIdToUserId = new Map<string, string>();
@@ -1234,7 +1328,7 @@ export default function AdminBackupRestore() {
       }
 
       // Upload files from ZIP
-      setImportProgress('Đang khôi phục file đính kèm...');
+      addImportStep('Đang khôi phục file đính kèm...', 20);
       const oldToNewPath = new Map<string, { path: string; bucket: string }>();
 
       const generateSafeStorageName = (fileName: string): string => {
@@ -1278,7 +1372,7 @@ export default function AdminBackupRestore() {
         }
       }
 
-      setImportProgress('Đang tạo các giai đoạn...');
+      addImportStep('Đang tạo các giai đoạn...', 30);
 
       // Create stages
       const stageNameToId = new Map<string, string>();
@@ -1300,7 +1394,7 @@ export default function AdminBackupRestore() {
         stageNameToId.set(stage.name, newStageId);
       }
 
-      setImportProgress('Đang khôi phục các task...');
+      addImportStep('Đang khôi phục các task...', 35);
 
       // Helper function to update file paths
       const updateFilePaths = (submissionLink: string | null): string | null => {
@@ -1412,7 +1506,7 @@ export default function AdminBackupRestore() {
       // Restore messages
       let messagesRestored = 0;
       if (backupData.messages && backupData.messages.length > 0) {
-        setImportProgress('Đang khôi phục tin nhắn...');
+        addImportStep('Đang khôi phục tin nhắn...', 50);
         
         const messageInserts = backupData.messages
           .filter(msg => studentIdToUserId.has(msg.student_id))
@@ -1433,7 +1527,7 @@ export default function AdminBackupRestore() {
       // Restore task notes
       let notesRestored = 0;
       if (backupData.task_notes && backupData.task_notes.length > 0) {
-        setImportProgress('Đang khôi phục ghi chú task...');
+        addImportStep('Đang khôi phục ghi chú task...', 55);
         
         for (const note of backupData.task_notes) {
           const taskId = taskTitleToId.get(note.task_title);
@@ -1479,7 +1573,7 @@ export default function AdminBackupRestore() {
       // Restore task comments
       let commentsRestored = 0;
       if (backupData.task_comments && backupData.task_comments.length > 0) {
-        setImportProgress('Đang khôi phục bình luận task...');
+        addImportStep('Đang khôi phục bình luận task...', 60);
         
         const commentIndexToId = new Map<number, string>();
         
@@ -1513,7 +1607,7 @@ export default function AdminBackupRestore() {
       // Restore resource folders
       const folderNameToId = new Map<string, string>();
       if (backupData.resource_folders && backupData.resource_folders.length > 0) {
-        setImportProgress('Đang khôi phục thư mục tài nguyên...');
+        addImportStep('Đang khôi phục thư mục tài nguyên...', 65);
         
         for (const folder of backupData.resource_folders) {
           const userId = studentIdToUserId.get(folder.created_by_student_id) || user!.id;
@@ -1539,7 +1633,7 @@ export default function AdminBackupRestore() {
       // Restore resources
       let resourcesRestored = 0;
       if (backupData.resources && backupData.resources.length > 0) {
-        setImportProgress('Đang khôi phục tài nguyên...');
+        addImportStep('Đang khôi phục tài nguyên...', 70);
         
         for (const resource of backupData.resources) {
           const userId = studentIdToUserId.get(resource.uploaded_by_student_id) || user!.id;
@@ -1618,7 +1712,7 @@ export default function AdminBackupRestore() {
 
       // Restore stage weights
       if (backupData.stage_weights && backupData.stage_weights.length > 0) {
-        setImportProgress('Đang khôi phục trọng số giai đoạn...');
+        addImportStep('Đang khôi phục trọng số giai đoạn...', 75);
         
         const weightInserts = backupData.stage_weights
           .filter(sw => stageNameToId.has(sw.stage_name))
@@ -1635,7 +1729,7 @@ export default function AdminBackupRestore() {
 
       // Restore member stage scores
       if (backupData.member_stage_scores && backupData.member_stage_scores.length > 0) {
-        setImportProgress('Đang khôi phục điểm giai đoạn...');
+        addImportStep('Đang khôi phục điểm giai đoạn...', 80);
         
         const scoreInserts = backupData.member_stage_scores
           .filter(mss => studentIdToUserId.has(mss.student_id) && stageNameToId.has(mss.stage_name))
@@ -1658,7 +1752,7 @@ export default function AdminBackupRestore() {
 
       // Restore member final scores
       if (backupData.member_final_scores && backupData.member_final_scores.length > 0) {
-        setImportProgress('Đang khôi phục điểm tổng kết...');
+        addImportStep('Đang khôi phục điểm tổng kết...', 85);
         
         const scoreInserts = backupData.member_final_scores
           .filter(mfs => studentIdToUserId.has(mfs.student_id))
@@ -1678,7 +1772,7 @@ export default function AdminBackupRestore() {
       // Restore score adjustment history
       let adjustmentsRestored = 0;
       if (backupData.score_adjustments && backupData.score_adjustments.length > 0) {
-        setImportProgress('Đang khôi phục lịch sử điều chỉnh điểm...');
+        addImportStep('Đang khôi phục lịch sử điều chỉnh điểm...', 88);
         
         const adjInserts = backupData.score_adjustments
           .filter(adj => studentIdToUserId.has(adj.student_id) && studentIdToUserId.has(adj.adjusted_by_student_id))
@@ -1703,7 +1797,7 @@ export default function AdminBackupRestore() {
       // Restore feedbacks with comments
       let feedbacksRestored = 0;
       if (backupData.feedbacks && backupData.feedbacks.length > 0) {
-        setImportProgress('Đang khôi phục phản hồi...');
+        addImportStep('Đang khôi phục phản hồi...', 92);
         
         for (const fb of backupData.feedbacks) {
           const userId = studentIdToUserId.get(fb.student_id);
@@ -1750,31 +1844,48 @@ export default function AdminBackupRestore() {
         }
       }
 
-      setImportProgress('Hoàn tất!');
+      addImportStep('Hoàn tất khôi phục!', 100);
 
-      const stats = [
-        `${oldToNewPath.size} file`,
-        messagesRestored > 0 ? `${messagesRestored} tin nhắn` : null,
-        notesRestored > 0 ? `${notesRestored} ghi chú` : null,
-        commentsRestored > 0 ? `${commentsRestored} bình luận` : null,
-        resourcesRestored > 0 ? `${resourcesRestored} tài nguyên` : null,
-        adjustmentsRestored > 0 ? `${adjustmentsRestored} điều chỉnh` : null,
-        feedbacksRestored > 0 ? `${feedbacksRestored} phản hồi` : null,
-      ].filter(Boolean).join(', ');
+      const importRecordCounts: Record<string, number> = {
+        files: oldToNewPath.size,
+        messages: messagesRestored,
+        task_notes: notesRestored,
+        task_comments: commentsRestored,
+        resources: resourcesRestored,
+        score_adjustments: adjustmentsRestored,
+        feedbacks: feedbacksRestored,
+        tasks: backupData.tasks.length,
+        stages: backupData.stages.length,
+        members: backupData.members.length,
+      };
 
-      toast({ 
-        title: 'Khôi phục thành công!', 
-        description: `Đã tạo bản sao project "${backupData.project_name}" với ${stats}.` 
+      setImportReport({
+        status: 'success',
+        projectName: backupData.project_name,
+        duration: Date.now() - importStartTime.current,
+        recordCounts: importRecordCounts,
+        fileCount: oldToNewPath.size,
+        zipSize: file.size,
+        errors: [],
       });
 
       fetchAllGroups();
 
     } catch (error) {
       console.error('Import error:', error);
+      addImportStep(`Lỗi: ${String(error)}`, importProgressPercent);
+      setImportReport({
+        status: 'error',
+        projectName: 'Không xác định',
+        duration: Date.now() - importStartTime.current,
+        recordCounts: {},
+        fileCount: 0,
+        zipSize: file.size,
+        errors: [String(error)],
+      });
       toast({ title: 'Lỗi khôi phục', description: String(error), variant: 'destructive' });
     } finally {
       setIsImporting(false);
-      setImportProgress('');
       event.target.value = '';
     }
   };
@@ -1783,262 +1894,432 @@ export default function AdminBackupRestore() {
     return null;
   }
 
-  return (
-    <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-            <FolderArchive className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              Sao lưu & Khôi phục
-              <span className="text-xs font-normal text-amber-600 bg-amber-500/10 px-2 py-1 rounded-full">v5.0</span>
-            </CardTitle>
-            <CardDescription>Xuất và nhập toàn bộ dữ liệu project với kiểm tra tính toàn vẹn</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Export Section */}
-        <div className="space-y-3">
-          <Label className="text-sm font-medium flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Sao lưu Project
-          </Label>
-          
-          <div className="flex gap-3">
-            <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Chọn project để sao lưu..." />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map(group => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button 
-              onClick={exportProject} 
-              disabled={!selectedGroupId || isExporting}
-              className="gap-2"
-            >
-              {isExporting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Đang xuất...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  Xuất toàn bộ
-                </>
-              )}
-            </Button>
-          </div>
+  // Shared report renderer
+  const renderReport = (report: BackupReport, type: 'export' | 'import') => {
+    const isSuccess = report.status === 'success';
+    const labelMap: Record<string, string> = {
+      members: 'Thành viên',
+      stages: 'Giai đoạn',
+      tasks: 'Công việc',
+      messages: 'Tin nhắn',
+      task_notes: 'Ghi chú task',
+      task_comments: 'Bình luận',
+      resources: 'Tài nguyên',
+      resource_folders: 'Thư mục TN',
+      activity_logs: 'Nhật ký',
+      stage_weights: 'Trọng số GĐ',
+      member_stage_scores: 'Điểm giai đoạn',
+      member_final_scores: 'Điểm tổng kết',
+      score_appeals: 'Khiếu nại',
+      score_adjustments: 'Điều chỉnh điểm',
+      feedbacks: 'Phản hồi',
+      files: 'File đính kèm',
+    };
 
-          {/* Collapsible Filter Options */}
-          <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full justify-between text-xs h-8">
-                <span className="flex items-center gap-1.5">
-                  <Filter className="w-3 h-3" />
-                  Lọc nội dung ({selectedCount}/7)
-                </span>
-                <ChevronDown className={`w-3 h-3 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <div className="space-y-2 p-3 bg-muted/50 rounded-md">
-                <div className="flex gap-2 mb-2">
-                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={selectAllOptions}>
-                    Chọn tất cả
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={deselectAllOptions}>
-                    Bỏ chọn
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="includeMessages" 
-                      checked={exportOptions.includeMessages}
-                      onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, includeMessages: !!checked }))}
-                      className="h-3.5 w-3.5"
-                    />
-                    <label htmlFor="includeMessages" className="text-xs flex items-center gap-1 cursor-pointer">
-                      <MessageSquare className="w-3 h-3 text-muted-foreground" />
-                      Tin nhắn
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="includeTaskNotes" 
-                      checked={exportOptions.includeTaskNotes}
-                      onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, includeTaskNotes: !!checked }))}
-                      className="h-3.5 w-3.5"
-                    />
-                    <label htmlFor="includeTaskNotes" className="text-xs flex items-center gap-1 cursor-pointer">
-                      <FileText className="w-3 h-3 text-muted-foreground" />
-                      Ghi chú task
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="includeTaskComments" 
-                      checked={exportOptions.includeTaskComments}
-                      onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, includeTaskComments: !!checked }))}
-                      className="h-3.5 w-3.5"
-                    />
-                    <label htmlFor="includeTaskComments" className="text-xs flex items-center gap-1 cursor-pointer">
-                      <MessageCircle className="w-3 h-3 text-muted-foreground" />
-                      Bình luận
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="includeResources" 
-                      checked={exportOptions.includeResources}
-                      onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, includeResources: !!checked }))}
-                      className="h-3.5 w-3.5"
-                    />
-                    <label htmlFor="includeResources" className="text-xs flex items-center gap-1 cursor-pointer">
-                      <FolderOpen className="w-3 h-3 text-muted-foreground" />
-                      Tài nguyên
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="includeActivityLogs" 
-                      checked={exportOptions.includeActivityLogs}
-                      onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, includeActivityLogs: !!checked }))}
-                      className="h-3.5 w-3.5"
-                    />
-                    <label htmlFor="includeActivityLogs" className="text-xs flex items-center gap-1 cursor-pointer">
-                      <History className="w-3 h-3 text-muted-foreground" />
-                      Nhật ký
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="includeScores" 
-                      checked={exportOptions.includeScores}
-                      onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, includeScores: !!checked }))}
-                      className="h-3.5 w-3.5"
-                    />
-                    <label htmlFor="includeScores" className="text-xs flex items-center gap-1 cursor-pointer">
-                      <Award className="w-3 h-3 text-muted-foreground" />
-                      Điểm số
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox 
-                      id="includeFeedbacks" 
-                      checked={exportOptions.includeFeedbacks}
-                      onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, includeFeedbacks: !!checked }))}
-                      className="h-3.5 w-3.5"
-                    />
-                    <label htmlFor="includeFeedbacks" className="text-xs flex items-center gap-1 cursor-pointer">
-                      <HelpCircle className="w-3 h-3 text-muted-foreground" />
-                      Phản hồi
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Progress bar */}
-          {isExporting && exportProgress > 0 && (
-            <div className="space-y-1">
-              <Progress value={exportProgress} className="h-2" />
-              <p className="text-xs text-muted-foreground text-center">{exportProgress}%</p>
-            </div>
+    return (
+      <div className="space-y-4">
+        {/* Status banner */}
+        <div className={`flex items-center gap-3 p-4 rounded-lg border ${
+          isSuccess 
+            ? 'bg-emerald-500/10 border-emerald-500/30' 
+            : 'bg-destructive/10 border-destructive/30'
+        }`}>
+          {isSuccess ? (
+            <CheckCircle className="w-8 h-8 text-emerald-500 flex-shrink-0" />
+          ) : (
+            <XCircle className="w-8 h-8 text-destructive flex-shrink-0" />
           )}
+          <div>
+            <p className="font-semibold text-lg">
+              {isSuccess 
+                ? (type === 'export' ? 'Sao lưu thành công!' : 'Khôi phục thành công!') 
+                : (type === 'export' ? 'Sao lưu thất bại' : 'Khôi phục thất bại')}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Project: <span className="font-medium text-foreground">{report.projectName}</span>
+            </p>
+          </div>
         </div>
 
-        <div className="border-t pt-6 space-y-3">
-          <Label className="text-sm font-medium flex items-center gap-2">
-            <Upload className="w-4 h-4" />
-            Khôi phục Project
-          </Label>
+        {/* Stats grid */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-muted/50 rounded-lg p-3 text-center">
+            <Clock className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">Thời gian</p>
+            <p className="font-semibold text-sm">{formatDuration(report.duration)}</p>
+          </div>
+          <div className="bg-muted/50 rounded-lg p-3 text-center">
+            <HardDrive className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">Dung lượng ZIP</p>
+            <p className="font-semibold text-sm">{formatFileSize(report.zipSize)}</p>
+          </div>
+          <div className="bg-muted/50 rounded-lg p-3 text-center">
+            <Package className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">Tổng bản ghi</p>
+            <p className="font-semibold text-sm">
+              {Object.values(report.recordCounts).reduce((a, b) => a + b, 0)}
+            </p>
+          </div>
+        </div>
+
+        {/* Record counts detail */}
+        {Object.keys(report.recordCounts).length > 0 && (
+          <div className="bg-muted/30 rounded-lg p-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Chi tiết dữ liệu:</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5">
+              {Object.entries(report.recordCounts)
+                .filter(([, count]) => count > 0)
+                .map(([key, count]) => (
+                  <div key={key} className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{labelMap[key] || key}</span>
+                    <span className="font-medium tabular-nums">{count}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        {/* Checksum */}
+        {report.checksum && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Shield className="w-3 h-3" />
+            <span>Integrity checksum: <code className="bg-muted px-1.5 py-0.5 rounded font-mono">{report.checksum}</code></span>
+          </div>
+        )}
+
+        {/* Errors */}
+        {report.errors.length > 0 && (
+          <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+            <p className="text-xs font-medium text-destructive mb-1">Lỗi:</p>
+            {report.errors.map((err, i) => (
+              <p key={i} className="text-xs text-destructive/80">{err}</p>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Shared progress renderer
+  const renderProgressDialog = (
+    steps: StepInfo[], 
+    currentStep: string, 
+    percent: number, 
+    isRunning: boolean
+  ) => (
+    <div className="space-y-4">
+      {/* Progress bar */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Tiến trình</span>
+          <span className="font-semibold tabular-nums">{percent}%</span>
+        </div>
+        <Progress value={percent} className="h-3" />
+      </div>
+
+      {/* Current step */}
+      {isRunning && (
+        <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+          <Loader2 className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
+          <span className="text-sm font-medium">{currentStep}</span>
+        </div>
+      )}
+
+      {/* Step history */}
+      <div className="bg-muted/30 rounded-lg p-3">
+        <p className="text-xs font-medium text-muted-foreground mb-2">Nhật ký tiến trình:</p>
+        <ScrollArea className="h-[200px]">
+          <div className="space-y-1.5">
+            {steps.map((step, i) => {
+              const isLast = i === steps.length - 1;
+              const timeDiff = i > 0 ? step.timestamp - steps[i - 1].timestamp : 0;
+              return (
+                <div key={i} className={`flex items-start gap-2 text-xs ${isLast && isRunning ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                  <span className="flex-shrink-0 w-4 h-4 mt-0.5 flex items-center justify-center">
+                    {isLast && isRunning ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-3 h-3 text-emerald-500" />
+                    )}
+                  </span>
+                  <span className="flex-1">{step.label}</span>
+                  {timeDiff > 0 && (
+                    <span className="text-muted-foreground/60 tabular-nums flex-shrink-0">
+                      +{timeDiff > 1000 ? `${(timeDiff / 1000).toFixed(1)}s` : `${timeDiff}ms`}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </div>
+    </div>
+  );
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  return (
+    <>
+      <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
+        <CardHeader>
           <div className="flex items-center gap-3">
-            <Input 
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+              <FolderArchive className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                Sao lưu & Khôi phục
+                <span className="text-xs font-normal text-amber-600 bg-amber-500/10 px-2 py-1 rounded-full">v5.0</span>
+              </CardTitle>
+              <CardDescription>Xuất và nhập toàn bộ dữ liệu project với kiểm tra tính toàn vẹn</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Export Section */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Sao lưu Project
+            </Label>
+            
+            <div className="flex gap-3">
+              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Chọn project để sao lưu..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map(group => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button 
+                onClick={exportProject} 
+                disabled={!selectedGroupId || isExporting}
+                className="gap-2"
+              >
+                {isExporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Đang xuất...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    Xuất toàn bộ
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Collapsible Filter Options */}
+            <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full justify-between text-xs h-8">
+                  <span className="flex items-center gap-1.5">
+                    <Filter className="w-3 h-3" />
+                    Lọc nội dung ({selectedCount}/7)
+                  </span>
+                  <ChevronDown className={`w-3 h-3 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+                  <div className="flex gap-2 mb-2">
+                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={selectAllOptions}>
+                      Chọn tất cả
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={deselectAllOptions}>
+                      Bỏ chọn
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {[
+                      { key: 'includeMessages', label: 'Tin nhắn', icon: MessageSquare },
+                      { key: 'includeTaskNotes', label: 'Ghi chú task', icon: FileText },
+                      { key: 'includeTaskComments', label: 'Bình luận', icon: MessageCircle },
+                      { key: 'includeResources', label: 'Tài nguyên', icon: FolderOpen },
+                      { key: 'includeActivityLogs', label: 'Nhật ký', icon: History },
+                      { key: 'includeScores', label: 'Điểm số', icon: Award },
+                      { key: 'includeFeedbacks', label: 'Phản hồi', icon: HelpCircle },
+                    ].map(({ key, label, icon: Icon }) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <Checkbox 
+                          id={key} 
+                          checked={exportOptions[key as keyof ExportOptions]}
+                          onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, [key]: !!checked }))}
+                          className="h-3.5 w-3.5"
+                        />
+                        <label htmlFor={key} className="text-xs flex items-center gap-1 cursor-pointer">
+                          <Icon className="w-3 h-3 text-muted-foreground" />
+                          {label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+
+          <div className="border-t pt-6 space-y-3">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Upload className="w-4 h-4" />
+              Khôi phục Project
+            </Label>
+            <input 
+              ref={fileInputRef}
               type="file" 
               accept=".zip" 
               onChange={importProject}
               disabled={isImporting}
-              className="flex-1"
+              className="hidden"
             />
-          </div>
-          {isImporting && (
-            <div className="flex items-center gap-2 text-sm text-primary">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              {importProgress}
+            <Button 
+              variant="outline" 
+              onClick={handleImportClick}
+              disabled={isImporting}
+              className="w-full gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Chọn file ZIP để khôi phục
+            </Button>
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="text-xs text-amber-700 dark:text-amber-400">
+                <p className="font-medium mb-1">Lưu ý:</p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>Dữ liệu sẽ được tạo thành project mới</li>
+                  <li>Admin hiện tại sẽ trở thành Leader</li>
+                  <li>Kiểm tra toàn vẹn tự động (v5.0+)</li>
+                </ul>
+              </div>
             </div>
-          )}
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div className="text-xs text-amber-700 dark:text-amber-400">
-              <p className="font-medium mb-1">Lưu ý quan trọng:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Dữ liệu sẽ được khôi phục thành project mới với ID hoàn toàn mới</li>
-                <li>Chỉ những thành viên đã tồn tại trong hệ thống mới được thêm vào</li>
-                <li>Admin hiện tại sẽ trở thành Leader của project mới</li>
-                <li>Project mới sẽ mặc định ở chế độ riêng tư</li>
-                <li>Kiểm tra tính toàn vẹn tự động khi khôi phục (v5.0+)</li>
-              </ul>
-            </div>
           </div>
-        </div>
 
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-          <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-          <div className="text-xs text-green-700 dark:text-green-400">
-            <p className="font-medium mb-1">Tính năng hỗ trợ (v5.0):</p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              <span className="flex items-center gap-1">
-                <Settings className="w-3 h-3" /> Thông tin project
-              </span>
-              <span className="flex items-center gap-1">
-                <File className="w-3 h-3" /> File đính kèm
-              </span>
-              <span className="flex items-center gap-1">
-                <MessageSquare className="w-3 h-3" /> Tin nhắn
-              </span>
-              <span className="flex items-center gap-1">
-                <FileText className="w-3 h-3" /> Ghi chú task
-              </span>
-              <span className="flex items-center gap-1">
-                <MessageCircle className="w-3 h-3" /> Bình luận task
-              </span>
-              <span className="flex items-center gap-1">
-                <FolderOpen className="w-3 h-3" /> Tài nguyên dự án
-              </span>
-              <span className="flex items-center gap-1">
-                <History className="w-3 h-3" /> Nhật ký hoạt động
-              </span>
-              <span className="flex items-center gap-1">
-                <Award className="w-3 h-3" /> Điểm số đầy đủ
-              </span>
-              <span className="flex items-center gap-1">
-                <Bug className="w-3 h-3" /> Lịch sử điều chỉnh
-              </span>
-              <span className="flex items-center gap-1">
-                <HelpCircle className="w-3 h-3" /> Phản hồi & bình luận
-              </span>
-              <span className="flex items-center gap-1">
-                <Shield className="w-3 h-3" /> Kiểm tra toàn vẹn
-              </span>
-              <span className="flex items-center gap-1">
-                <FolderArchive className="w-3 h-3" /> Phân loại thư mục ZIP
-              </span>
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-green-700 dark:text-green-400">
+              <p className="font-medium mb-1">Hỗ trợ (v5.0):</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                {[
+                  [Settings, 'Thông tin project'],
+                  [File, 'File đính kèm'],
+                  [MessageSquare, 'Tin nhắn'],
+                  [FileText, 'Ghi chú task'],
+                  [MessageCircle, 'Bình luận task'],
+                  [FolderOpen, 'Tài nguyên dự án'],
+                  [History, 'Nhật ký hoạt động'],
+                  [Award, 'Điểm số đầy đủ'],
+                  [Bug, 'Lịch sử điều chỉnh'],
+                  [HelpCircle, 'Phản hồi & bình luận'],
+                  [Shield, 'Kiểm tra toàn vẹn'],
+                  [FolderArchive, 'Phân loại thư mục'],
+                ].map(([Icon, label], i) => {
+                  const IconComp = Icon as any;
+                  return (
+                    <span key={i} className="flex items-center gap-1">
+                      <IconComp className="w-3 h-3" /> {label as string}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Export Progress Dialog */}
+      <Dialog open={showExportDialog} onOpenChange={(open) => {
+        if (!isExporting) setShowExportDialog(open);
+      }}>
+        <DialogContent 
+          className="p-0 gap-0 overflow-hidden border-border/50"
+          style={{ width: '1280px', maxWidth: '95vw', height: '720px', maxHeight: '95vh' }}
+          onInteractOutside={(e) => { if (isExporting) e.preventDefault(); }}
+        >
+          <div className="flex flex-col h-full">
+            <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+              <DialogTitle className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Download className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <span className="text-lg">Sao lưu Project</span>
+                  <p className="text-xs font-normal text-muted-foreground mt-0.5">
+                    {groups.find(g => g.id === selectedGroupId)?.name || ''}
+                  </p>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="flex-1 px-6 py-4">
+              {exportReport ? (
+                <div className="max-w-2xl mx-auto">
+                  {renderReport(exportReport, 'export')}
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={() => { setShowExportDialog(false); setExportProgress(0); }}>
+                      Đóng
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-2xl mx-auto">
+                  {renderProgressDialog(exportSteps, exportStepLabel, exportProgress, isExporting)}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Progress Dialog */}
+      <Dialog open={showImportDialog} onOpenChange={(open) => {
+        if (!isImporting) setShowImportDialog(open);
+      }}>
+        <DialogContent 
+          className="p-0 gap-0 overflow-hidden border-border/50"
+          style={{ width: '1280px', maxWidth: '95vw', height: '720px', maxHeight: '95vh' }}
+          onInteractOutside={(e) => { if (isImporting) e.preventDefault(); }}
+        >
+          <div className="flex flex-col h-full">
+            <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+              <DialogTitle className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Upload className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <span className="text-lg">Khôi phục Project</span>
+                  <p className="text-xs font-normal text-muted-foreground mt-0.5">
+                    {importStepLabel || 'Đang chuẩn bị...'}
+                  </p>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="flex-1 px-6 py-4">
+              {importReport ? (
+                <div className="max-w-2xl mx-auto">
+                  {renderReport(importReport, 'import')}
+                  <div className="mt-6 flex justify-end">
+                    <Button onClick={() => setShowImportDialog(false)}>
+                      Đóng
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-2xl mx-auto">
+                  {renderProgressDialog(importSteps, importStepLabel, importProgressPercent, isImporting)}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
