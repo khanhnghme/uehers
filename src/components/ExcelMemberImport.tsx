@@ -206,10 +206,10 @@ export default function ExcelMemberImport({
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0 flex flex-col">
             {/* STEP 1: Upload */}
             {step === 'upload' && (
-              <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <div className="flex-1 flex flex-col items-center justify-center py-12 gap-4">
                 <div 
                   className="w-full max-w-sm border-2 border-dashed border-muted-foreground/30 rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
                   onClick={() => fileInputRef.current?.click()}
@@ -230,7 +230,7 @@ export default function ExcelMemberImport({
 
             {/* STEP 2: Mapping */}
             {step === 'mapping' && (
-              <div className="space-y-4">
+              <div className="flex-1 flex flex-col gap-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <FileSpreadsheet className="w-4 h-4" />
                   <span className="font-medium">{fileName}</span>
@@ -268,12 +268,12 @@ export default function ExcelMemberImport({
                 </div>
 
                 {/* Preview table */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="text-xs font-medium text-muted-foreground px-3 py-2 bg-muted/50 flex items-center gap-1.5">
+                <div className="flex-1 border rounded-lg overflow-hidden flex flex-col min-h-0">
+                  <div className="text-xs font-medium text-muted-foreground px-3 py-2 bg-muted/50 flex items-center gap-1.5 shrink-0">
                     <Table2 className="w-3.5 h-3.5" />
                     Xem trước (5 dòng đầu)
                   </div>
-                  <ScrollArea className="max-h-48">
+                  <ScrollArea className="flex-1">
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
@@ -310,7 +310,7 @@ export default function ExcelMemberImport({
 
             {/* STEP 3: Action */}
             {step === 'action' && (
-              <div className="space-y-4 py-4">
+              <div className="flex-1 flex flex-col gap-4 py-4">
                 <p className="text-sm text-muted-foreground">
                   Đã đọc <span className="font-semibold text-foreground">{parsedRows.length}</span> bản ghi từ file. Chọn thao tác:
                 </p>
@@ -351,7 +351,7 @@ export default function ExcelMemberImport({
 
             {/* STEP 4: Confirm */}
             {step === 'confirm' && (
-              <div className="space-y-3">
+              <div className="flex-1 flex flex-col gap-3">
                 {isValidating ? (
                   <div className="flex items-center justify-center py-12 gap-2">
                     <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -396,7 +396,7 @@ export default function ExcelMemberImport({
                     </div>
 
                     {/* Validation table */}
-                    <ScrollArea className="max-h-56 border rounded-lg">
+                    <ScrollArea className="flex-1 border rounded-lg min-h-0">
                       <table className="w-full text-xs">
                         <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
                           <tr className="border-b">
