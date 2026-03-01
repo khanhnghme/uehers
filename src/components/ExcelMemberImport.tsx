@@ -183,7 +183,7 @@ export default function ExcelMemberImport({
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogContent className="w-[90vw] max-w-[1280px] h-[90vw*9/16] max-h-[720px] min-h-[400px] flex flex-col overflow-hidden" style={{ aspectRatio: '16/9', height: 'min(720px, calc(90vw * 9 / 16))' }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-primary" />
@@ -206,7 +206,7 @@ export default function ExcelMemberImport({
             ))}
           </div>
 
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto min-h-0">
             {/* STEP 1: Upload */}
             {step === 'upload' && (
               <div className="flex flex-col items-center justify-center py-12 gap-4">
