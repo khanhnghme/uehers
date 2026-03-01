@@ -37,6 +37,7 @@ import {
   UserCheck,
   Info,
   Download,
+  Upload,
   Lock,
   Unlock,
   CheckSquare,
@@ -47,6 +48,7 @@ import type { Profile } from '@/types/database';
 import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
 import MemberDetailDialog from '@/components/MemberDetailDialog';
 import SuspendMemberDialog from '@/components/SuspendMemberDialog';
+import ExcelMemberImport, { type ParsedRow, type ExcelImportAction, type ImportValidation } from '@/components/ExcelMemberImport';
 
 export default function MemberManagement() {
   const navigate = useNavigate();
@@ -69,6 +71,7 @@ export default function MemberManagement() {
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkAction, setBulkAction] = useState<'delete' | 'suspend' | 'unsuspend' | null>(null);
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
   
   // Form state - New member
   const [newEmail, setNewEmail] = useState('');
@@ -597,6 +600,15 @@ export default function MemberManagement() {
               <Download className="w-4 h-4" />
               Xuất Excel
             </Button>
+
+            <Button 
+              variant="outline" 
+              className="font-semibold gap-2"
+              onClick={() => setIsExcelImportOpen(true)}
+            >
+              <Upload className="w-4 h-4" />
+              Import Excel
+            </Button>
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -1080,6 +1092,110 @@ export default function MemberManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Excel Import Dialog */}
+      <ExcelMemberImport
+        open={isExcelImportOpen}
+        onOpenChange={setIsExcelImportOpen}
+        contextLabel="hệ thống"
+        allowedActions={['add', 'remove']}
+        onValidate={async (action: ExcelImportAction, rows: ParsedRow[]) => {
+          const results: ImportValidation[] = [];
+          for (const row of rows) {
+            if (action === 'add') {
+              if (!row.fullName || !row.email) {
+                results.push({ row, status: 'missing_field', message: `Thiếu ${!row.fullName ? 'họ tên' : 'email'}` });
+                continue;
+              }
+              // Check duplicate by email
+              const existing = members.find(m => m.email.toLowerCase() === row.email.toLowerCase());
+              if (existing) {
+                results.push({ row, status: 'duplicate', message: 'Email đã tồn tại' });
+              } else {
+                results.push({ row, status: 'ok' });
+              }
+            } else {
+              // Remove - find by student_id or email
+              const match = members.find(m =>
+                (row.studentId && m.student_id === row.studentId) ||
+                (row.email && m.email.toLowerCase() === row.email.toLowerCase())
+              );
+              if (!match) {
+                results.push({ row, status: 'not_found', message: 'Không tìm thấy' });
+              } else if (match.id === user?.id) {
+                results.push({ row, status: 'missing_field', message: 'Không thể xóa chính mình' });
+              } else {
+                results.push({ row, status: 'ok' });
+              }
+            }
+          }
+          return results;
+        }}
+        onExecute={async (action: ExcelImportAction, rows: ParsedRow[]) => {
+          let success = 0;
+          let failed = 0;
+          const errors: string[] = [];
+
+          if (action === 'add') {
+            for (const row of rows) {
+              try {
+                const { data, error } = await supabase.functions.invoke('manage-users', {
+                  body: {
+                    action: 'create_member',
+                    email: row.email,
+                    student_id: row.studentId,
+                    full_name: row.fullName,
+                  },
+                });
+                if (error || data?.error) throw new Error(data?.error || error?.message);
+                success++;
+              } catch (err: any) {
+                failed++;
+                errors.push(`${row.fullName}: ${err.message}`);
+              }
+            }
+            if (success > 0) {
+              await supabase.from('activity_logs').insert({
+                user_id: user!.id,
+                user_name: currentProfile?.full_name || user?.email || 'Unknown',
+                action: 'BULK_IMPORT_MEMBERS',
+                action_type: 'member',
+                description: `Import hàng loạt ${success} thành viên từ Excel`,
+              });
+            }
+          } else {
+            for (const row of rows) {
+              try {
+                const match = members.find(m =>
+                  (row.studentId && m.student_id === row.studentId) ||
+                  (row.email && m.email.toLowerCase() === row.email.toLowerCase())
+                );
+                if (!match) { failed++; errors.push(`${row.fullName}: Không tìm thấy`); continue; }
+                const { data, error } = await supabase.functions.invoke('manage-users', {
+                  body: { action: 'delete_user', user_id: match.id, requester_id: user?.id },
+                });
+                if (error || data?.error) throw new Error(data?.error || error?.message);
+                success++;
+              } catch (err: any) {
+                failed++;
+                errors.push(`${row.fullName}: ${err.message}`);
+              }
+            }
+            if (success > 0) {
+              await supabase.from('activity_logs').insert({
+                user_id: user!.id,
+                user_name: currentProfile?.full_name || user?.email || 'Unknown',
+                action: 'BULK_REMOVE_MEMBERS',
+                action_type: 'member',
+                description: `Xóa hàng loạt ${success} thành viên từ Excel`,
+              });
+            }
+          }
+
+          fetchMembers();
+          return { success, failed, errors };
+        }}
+      />
     </DashboardLayout>
   );
 }
