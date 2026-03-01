@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { Bell, Trash2, Check, Clock, AlertCircle, CheckCircle2, Send, UserPlus, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -139,37 +140,37 @@ export default function NotificationBell() {
   // Delete single notification
   const deleteNotification = async (notificationId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      await supabase
-        .from('notifications')
-        .delete()
-        .eq('id', notificationId);
+    const deletedNotif = notifications.find(n => n.id === notificationId);
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
 
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      toast.success('Đã xóa thông báo');
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-      toast.error('Không thể xóa thông báo');
-    }
+    deleteWithUndo({
+      description: 'Đã xóa thông báo',
+      onDelete: async () => {
+        await supabase.from('notifications').delete().eq('id', notificationId);
+      },
+      onUndo: () => {
+        if (deletedNotif) setNotifications(prev => [deletedNotif, ...prev]);
+      },
+    });
   };
 
   // Delete all notifications
   const deleteAllNotifications = async () => {
     if (!user) return;
-    
-    try {
-      await supabase
-        .from('notifications')
-        .delete()
-        .eq('user_id', user.id);
+    const savedNotifs = [...notifications];
+    setNotifications([]);
+    setUnreadCount(0);
 
-      setNotifications([]);
-      setUnreadCount(0);
-      toast.success('Đã xóa tất cả thông báo');
-    } catch (error) {
-      console.error('Error deleting all notifications:', error);
-      toast.error('Không thể xóa thông báo');
-    }
+    deleteWithUndo({
+      description: 'Đã xóa tất cả thông báo',
+      onDelete: async () => {
+        await supabase.from('notifications').delete().eq('user_id', user.id);
+      },
+      onUndo: () => {
+        setNotifications(savedNotifs);
+        setUnreadCount(savedNotifs.filter(n => !n.is_read).length);
+      },
+    });
   };
 
   // Mark all as read

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { supabase } from '@/integrations/supabase/client';
@@ -586,34 +587,20 @@ export default function Communication() {
   };
 
   const handleDeleteMessage = async (messageId: string) => {
-    try {
-      // First delete related mentions
-      await supabase
-        .from('message_mentions')
-        .delete()
-        .eq('message_id', messageId);
+    const deletedMsg = messages.find(m => m.id === messageId);
+    setMessages(prev => prev.filter(m => m.id !== messageId));
 
-      // Then delete the message
-      const { error } = await supabase
-        .from('project_messages')
-        .delete()
-        .eq('id', messageId)
-        .eq('user_id', user?.id); // Ensure user can only delete their own messages
-
-      if (error) throw error;
-
-      setMessages(prev => prev.filter(m => m.id !== messageId));
-      toast({
-        title: 'Đã xóa tin nhắn'
-      });
-    } catch (error) {
-      console.error('Error deleting message:', error);
-      toast({
-        title: 'Lỗi',
-        description: 'Không thể xóa tin nhắn',
-        variant: 'destructive'
-      });
-    }
+    deleteWithUndo({
+      description: 'Đã xóa tin nhắn',
+      onDelete: async () => {
+        await supabase.from('message_mentions').delete().eq('message_id', messageId);
+        const { error } = await supabase.from('project_messages').delete().eq('id', messageId).eq('user_id', user?.id);
+        if (error) throw error;
+      },
+      onUndo: () => {
+        if (deletedMsg) setMessages(prev => [...prev, deletedMsg].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+      },
+    });
   };
 
   const handleNavigateToTask = (taskId: string) => {

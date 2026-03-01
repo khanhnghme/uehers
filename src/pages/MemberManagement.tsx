@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -415,45 +416,39 @@ export default function MemberManagement() {
 
   const handleDeleteMember = async () => {
     if (!selectedMember) return;
-
-    setIsCreating(true);
-
-    const { data, error } = await supabase.functions.invoke('manage-users', {
-      body: {
-        action: 'delete_user',
-        user_id: selectedMember.id,
-        requester_id: user?.id,
-      }
-    });
-
-    setIsCreating(false);
-
-    if (error || data?.error) {
-      toast({
-        title: 'Xóa thành viên thất bại',
-        description: data?.error || error?.message || 'Có lỗi xảy ra',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Log activity
-    await supabase.from('activity_logs').insert({
-      user_id: user!.id,
-      user_name: currentProfile?.full_name || user?.email || 'Unknown',
-      action: 'DELETE_SYSTEM_MEMBER',
-      action_type: 'member',
-      description: `Xóa tài khoản ${selectedMember.full_name} khỏi hệ thống`,
-    });
-
-    toast({
-      title: 'Xóa thành công',
-      description: `Đã xóa tài khoản ${selectedMember.full_name} khỏi hệ thống`,
-    });
-
+    const memberRef = selectedMember;
     setSelectedMember(null);
     setIsDeleteDialogOpen(false);
-    fetchMembers();
+
+    deleteWithUndo({
+      description: `Đã xóa tài khoản ${memberRef.full_name} khỏi hệ thống`,
+      onDelete: async () => {
+        const { data, error } = await supabase.functions.invoke('manage-users', {
+          body: {
+            action: 'delete_user',
+            user_id: memberRef.id,
+            requester_id: user?.id,
+          }
+        });
+
+        if (error || data?.error) {
+          throw new Error(data?.error || error?.message || 'Có lỗi xảy ra');
+        }
+
+        await supabase.from('activity_logs').insert({
+          user_id: user!.id,
+          user_name: currentProfile?.full_name || user?.email || 'Unknown',
+          action: 'DELETE_SYSTEM_MEMBER',
+          action_type: 'member',
+          description: `Xóa tài khoản ${memberRef.full_name} khỏi hệ thống`,
+        });
+
+        fetchMembers();
+      },
+      onUndo: () => {
+        fetchMembers();
+      },
+    });
   };
 
   const handleUnsuspend = async (member: Profile) => {

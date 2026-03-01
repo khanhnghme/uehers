@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { useLocation } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -358,13 +359,17 @@ export default function AdminUsers() {
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    const { error } = await supabase.from('group_members').delete().eq('id', memberId);
-    if (error) {
-      toast({ title: 'Lỗi xoá thành viên', description: error.message, variant: 'destructive' });
-      return;
-    }
-    toast({ title: 'Đã xoá thành viên khỏi nhóm' });
-    fetchMembers();
+    deleteWithUndo({
+      description: 'Đã xoá thành viên khỏi nhóm',
+      onDelete: async () => {
+        const { error } = await supabase.from('group_members').delete().eq('id', memberId);
+        if (error) throw error;
+        fetchMembers();
+      },
+      onUndo: () => {
+        fetchMembers();
+      },
+    });
   };
 
   const handleApproveJoin = async (approval: PendingApprovalRow) => {
