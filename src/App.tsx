@@ -24,9 +24,11 @@ import PersonalInfo from "./pages/PersonalInfo";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isApproved, profile } = useAuth();
   if (isLoading) return <div className="min-h-screen flex items-center justify-center">Đang tải...</div>;
   if (!user) return <Navigate to="/auth" replace />;
+  // If profile loaded and not approved, redirect to auth page which shows pending screen
+  if (profile && !profile.is_approved) return <Navigate to="/auth" replace />;
   return <>{children}</>;
 }
 
