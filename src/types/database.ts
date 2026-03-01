@@ -18,6 +18,11 @@ export interface Profile {
   phone: string | null;
   skills: string | null;
   bio: string | null;
+  // Suspension fields
+  suspended_until: string | null;
+  suspension_reason: string | null;
+  suspended_at: string | null;
+  suspended_by: string | null;
 }
 
 export interface UserRole {

@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import type { Profile, UserRole, AppRole } from '@/types/database';
+import SuspendedScreen from '@/components/SuspendedScreen';
 
 interface AuthContextType {
   user: User | null;
@@ -58,17 +59,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
     
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
       
-      // Handle token refresh errors gracefully
       if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Use setTimeout to avoid blocking
           setTimeout(() => {
             if (isMounted) fetchProfile(session.user.id);
           }, 0);
@@ -83,7 +81,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isMounted) setIsLoading(false);
     });
 
-    // Get initial session - handle errors gracefully
     const initSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -91,7 +88,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) return;
         
         if (error) {
-          // Handle invalid refresh token by clearing session
           console.warn('Session error:', error.message);
           setSession(null);
           setUser(null);
@@ -151,34 +147,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRoles([]);
   };
 
-  // System-level roles (from user_roles table)
-  // isAdmin: có quyền cao nhất - quản lý hệ thống, xem tất cả data
   const isAdmin = roles.includes('admin');
-  
-  // isLeader: được quyền tạo project mới (system-level leader hoặc admin)
-  // Sau khi cleanup: chỉ admin mới có role trong user_roles, nên isLeader = isAdmin
   const isLeader = roles.includes('leader') || isAdmin;
-  
-  // BỎ CƠ CHẾ DUYỆT TÀI KHOẢN: tất cả user đã đăng nhập đều được xem là hợp lệ
   const isApproved = true;
   const mustChangePassword = profile?.must_change_password ?? false;
+
+  // Check if user is suspended
+  const isSuspended = profile?.suspended_until
+    ? new Date(profile.suspended_until).getTime() > Date.now()
+    : false;
+
+  const handleUnlocked = useCallback(() => {
+    refreshProfile();
+  }, [user]);
+
+  // Show suspended screen if user is logged in but suspended (and not admin)
+  if (user && profile && isSuspended && !isAdmin) {
+    return (
+      <AuthContext.Provider
+        value={{
+          user, session, profile, roles, isLoading,
+          isAdmin, isLeader, isApproved, mustChangePassword,
+          signIn, signUp, signOut, refreshProfile,
+        }}
+      >
+        <SuspendedScreen
+          suspendedUntil={profile.suspended_until!}
+          suspensionReason={profile.suspension_reason}
+          onSignOut={signOut}
+          onUnlocked={handleUnlocked}
+        />
+      </AuthContext.Provider>
+    );
+  }
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        session,
-        profile,
-        roles,
-        isLoading,
-        isAdmin,
-        isLeader,
-        isApproved,
-        mustChangePassword,
-        signIn,
-        signUp,
-        signOut,
-        refreshProfile,
+        user, session, profile, roles, isLoading,
+        isAdmin, isLeader, isApproved, mustChangePassword,
+        signIn, signUp, signOut, refreshProfile,
       }}
     >
       {children}

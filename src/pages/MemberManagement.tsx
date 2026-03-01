@@ -35,11 +35,14 @@ import {
   Shield,
   UserCheck,
   Info,
-  Download
+  Download,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
 import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
 import MemberDetailDialog from '@/components/MemberDetailDialog';
+import SuspendMemberDialog from '@/components/SuspendMemberDialog';
 
 export default function MemberManagement() {
   const navigate = useNavigate();
@@ -55,6 +58,7 @@ export default function MemberManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -373,6 +377,38 @@ export default function MemberManagement() {
     fetchMembers();
   };
 
+  const handleUnsuspend = async (member: Profile) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        suspended_until: null,
+        suspension_reason: null,
+        suspended_at: null,
+        suspended_by: null,
+      })
+      .eq('id', member.id);
+
+    if (error) {
+      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+      return;
+    }
+
+    await supabase.from('activity_logs').insert({
+      user_id: user!.id,
+      user_name: currentProfile?.full_name || user?.email || 'Unknown',
+      action: 'UNSUSPEND_MEMBER',
+      action_type: 'member',
+      description: `Mở khóa tài khoản ${member.full_name}`,
+    });
+
+    toast({ title: 'Đã mở khóa', description: `Tài khoản ${member.full_name} đã được mở khóa.` });
+    fetchMembers();
+  };
+
+  const isMemberSuspended = (member: Profile): boolean => {
+    return member.suspended_until ? new Date(member.suspended_until).getTime() > Date.now() : false;
+  };
+
   const openEditDialog = (member: Profile) => {
     setSelectedMember(member);
     setEditFullName(member.full_name);
@@ -565,9 +601,10 @@ export default function MemberManagement() {
                 {filteredMembers.map((member) => {
                   const canManage = canManageMember(member.id);
                   const isAdminMember = isMemberAdmin(member.id);
+                  const suspended = isMemberSuspended(member);
                   
                   return (
-                    <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => { setSelectedMember(member); setIsDetailDialogOpen(true); }}>
+                    <div key={member.id} className={`flex items-center gap-4 p-4 rounded-xl transition-colors cursor-pointer ${suspended ? 'bg-destructive/5 hover:bg-destructive/10 border border-destructive/20' : 'bg-muted/30 hover:bg-muted/50'}`} onClick={() => { setSelectedMember(member); setIsDetailDialogOpen(true); }}>
                       <UserAvatar 
                         src={member.avatar_url}
                         name={member.full_name}
@@ -586,6 +623,12 @@ export default function MemberManagement() {
                           )}
                           {member.id === user?.id && (
                             <Badge variant="outline" className="text-xs">Bạn</Badge>
+                          )}
+                          {suspended && (
+                            <Badge variant="destructive" className="text-xs gap-1">
+                              <Lock className="w-3 h-3" />
+                              Đã khóa
+                            </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -617,6 +660,20 @@ export default function MemberManagement() {
                               <Key className="w-4 h-4 mr-2" />
                               Đổi mật khẩu
                             </DropdownMenuItem>
+                            {suspended ? (
+                              <DropdownMenuItem onClick={() => handleUnsuspend(member)}>
+                                <Unlock className="w-4 h-4 mr-2" />
+                                Mở khóa tài khoản
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => {
+                                setSelectedMember(member);
+                                setIsSuspendDialogOpen(true);
+                              }}>
+                                <Lock className="w-4 h-4 mr-2" />
+                                Tạm khóa tài khoản
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
                               onClick={() => {
@@ -776,6 +833,19 @@ export default function MemberManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Suspend Member Dialog */}
+      <SuspendMemberDialog
+        open={isSuspendDialogOpen}
+        onOpenChange={(open) => {
+          setIsSuspendDialogOpen(open);
+          if (!open) setSelectedMember(null);
+        }}
+        member={selectedMember}
+        currentUserId={user?.id || ''}
+        currentUserName={currentProfile?.full_name || user?.email || 'Unknown'}
+        onSuccess={fetchMembers}
+      />
 
       {/* Member Detail Dialog */}
       <MemberDetailDialog

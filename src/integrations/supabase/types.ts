@@ -535,6 +535,10 @@ export type Database = {
           phone: string | null
           skills: string | null
           student_id: string
+          suspended_at: string | null
+          suspended_by: string | null
+          suspended_until: string | null
+          suspension_reason: string | null
           updated_at: string
           year_batch: string | null
         }
@@ -551,6 +555,10 @@ export type Database = {
           phone?: string | null
           skills?: string | null
           student_id: string
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspended_until?: string | null
+          suspension_reason?: string | null
           updated_at?: string
           year_batch?: string | null
         }
@@ -567,6 +575,10 @@ export type Database = {
           phone?: string | null
           skills?: string | null
           student_id?: string
+          suspended_at?: string | null
+          suspended_by?: string | null
+          suspended_until?: string | null
+          suspension_reason?: string | null
           updated_at?: string
           year_batch?: string | null
         }
