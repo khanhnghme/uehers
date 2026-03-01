@@ -230,6 +230,7 @@ export type Database = {
       }
       groups: {
         Row: {
+          activity_logging_enabled: boolean | null
           additional_info: string | null
           class_code: string | null
           created_at: string
@@ -252,6 +253,7 @@ export type Database = {
           zalo_link: string | null
         }
         Insert: {
+          activity_logging_enabled?: boolean | null
           additional_info?: string | null
           class_code?: string | null
           created_at?: string
@@ -274,6 +276,7 @@ export type Database = {
           zalo_link?: string | null
         }
         Update: {
+          activity_logging_enabled?: boolean | null
           additional_info?: string | null
           class_code?: string | null
           created_at?: string

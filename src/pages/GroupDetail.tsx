@@ -628,7 +628,12 @@ export default function GroupDetail() {
             </TabsContent>
 
             <TabsContent value="logs" className="mt-6">
-              <ProjectActivityLog groupId={group.id} groupName={group.name} />
+              <ProjectActivityLog 
+                groupId={group.id} 
+                groupName={group.name} 
+                isLeader={isLeaderInGroup}
+                isAdmin={isAdmin}
+              />
             </TabsContent>
 
             {isLeaderInGroup && group.created_by === user?.id && (
