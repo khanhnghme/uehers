@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -302,6 +303,8 @@ export default function AdminBackupRestore() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showMainDialog, setShowMainDialog] = useState(false);
   const [activePage, setActivePage] = useState<'backup' | 'restore'>('backup');
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const cancelRef = useRef(false);
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     includeMessages: true,
     includeTaskNotes: true,
@@ -444,6 +447,10 @@ export default function AdminBackupRestore() {
     setImportSteps(prev => [...prev, { label, timestamp: Date.now() }]);
   };
 
+  const checkCancelled = () => {
+    if (cancelRef.current) throw new Error('CANCELLED');
+  };
+
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -472,6 +479,7 @@ export default function AdminBackupRestore() {
     setExportSteps([]);
     setExportReport(null);
     setShowMainDialog(true);
+    cancelRef.current = false;
     exportStartTime.current = Date.now();
     
     try {
@@ -637,6 +645,7 @@ export default function AdminBackupRestore() {
 
       await Promise.all(optionalFetches);
 
+      checkCancelled();
       addExportStep('Đang tải dữ liệu tùy chọn...');
       setExportProgress(35);
 
@@ -705,6 +714,7 @@ export default function AdminBackupRestore() {
       // Remove duplicates
       const uniqueFiles = Array.from(new Map(filesToDownload.map(f => [`${f.bucket}/${f.path}`, f])).values());
 
+      checkCancelled();
       addExportStep('Đang chuẩn bị dữ liệu sao lưu...');
       setExportProgress(50);
 
@@ -930,6 +940,7 @@ export default function AdminBackupRestore() {
           }))
       }));
 
+      checkCancelled();
       addExportStep('Đang xử lý & đóng gói dữ liệu...');
       setExportProgress(55);
 
@@ -1169,18 +1180,21 @@ export default function AdminBackupRestore() {
       });
 
     } catch (error) {
-      console.error('Export error:', error);
-      addExportStep(`Lỗi: ${String(error)}`);
-      setExportReport({
-        status: 'error',
-        projectName: groups.find(g => g.id === selectedGroupId)?.name || '',
-        duration: Date.now() - exportStartTime.current,
-        recordCounts: {},
-        fileCount: 0,
-        zipSize: 0,
-        errors: [String(error)],
-      });
-      toast({ title: 'Lỗi xuất dữ liệu', description: String(error), variant: 'destructive' });
+      const isCancelled = String(error) === 'Error: CANCELLED' || cancelRef.current;
+      if (!isCancelled) {
+        console.error('Export error:', error);
+        addExportStep(`Lỗi: ${String(error)}`);
+        setExportReport({
+          status: 'error',
+          projectName: groups.find(g => g.id === selectedGroupId)?.name || '',
+          duration: Date.now() - exportStartTime.current,
+          recordCounts: {},
+          fileCount: 0,
+          zipSize: 0,
+          errors: [String(error)],
+        });
+        toast({ title: 'Lỗi xuất dữ liệu', description: String(error), variant: 'destructive' });
+      }
     } finally {
       setIsExporting(false);
     }
@@ -1196,6 +1210,7 @@ export default function AdminBackupRestore() {
     setImportReport(null);
     setImportProgressPercent(0);
     setShowMainDialog(true);
+    cancelRef.current = false;
     importStartTime.current = Date.now();
     addImportStep('Đang đọc file ZIP...', 2);
 
@@ -1260,6 +1275,7 @@ export default function AdminBackupRestore() {
         }
       }
 
+      checkCancelled();
       addImportStep('Đang tạo project mới...', 10);
 
       // Create new group
@@ -1372,6 +1388,7 @@ export default function AdminBackupRestore() {
         }
       }
 
+      checkCancelled();
       addImportStep('Đang tạo các giai đoạn...', 30);
 
       // Create stages
@@ -1394,6 +1411,7 @@ export default function AdminBackupRestore() {
         stageNameToId.set(stage.name, newStageId);
       }
 
+      checkCancelled();
       addImportStep('Đang khôi phục các task...', 35);
 
       // Helper function to update file paths
@@ -1506,6 +1524,7 @@ export default function AdminBackupRestore() {
       // Restore messages
       let messagesRestored = 0;
       if (backupData.messages && backupData.messages.length > 0) {
+        checkCancelled();
         addImportStep('Đang khôi phục tin nhắn...', 50);
         
         const messageInserts = backupData.messages
@@ -1573,6 +1592,7 @@ export default function AdminBackupRestore() {
       // Restore task comments
       let commentsRestored = 0;
       if (backupData.task_comments && backupData.task_comments.length > 0) {
+        checkCancelled();
         addImportStep('Đang khôi phục bình luận task...', 60);
         
         const commentIndexToId = new Map<number, string>();
@@ -1633,6 +1653,7 @@ export default function AdminBackupRestore() {
       // Restore resources
       let resourcesRestored = 0;
       if (backupData.resources && backupData.resources.length > 0) {
+        checkCancelled();
         addImportStep('Đang khôi phục tài nguyên...', 70);
         
         for (const resource of backupData.resources) {
@@ -1797,6 +1818,7 @@ export default function AdminBackupRestore() {
       // Restore feedbacks with comments
       let feedbacksRestored = 0;
       if (backupData.feedbacks && backupData.feedbacks.length > 0) {
+        checkCancelled();
         addImportStep('Đang khôi phục phản hồi...', 92);
         
         for (const fb of backupData.feedbacks) {
@@ -1872,18 +1894,21 @@ export default function AdminBackupRestore() {
       fetchAllGroups();
 
     } catch (error) {
-      console.error('Import error:', error);
-      addImportStep(`Lỗi: ${String(error)}`, importProgressPercent);
-      setImportReport({
-        status: 'error',
-        projectName: 'Không xác định',
-        duration: Date.now() - importStartTime.current,
-        recordCounts: {},
-        fileCount: 0,
-        zipSize: file.size,
-        errors: [String(error)],
-      });
-      toast({ title: 'Lỗi khôi phục', description: String(error), variant: 'destructive' });
+      const isCancelled = String(error) === 'Error: CANCELLED' || cancelRef.current;
+      if (!isCancelled) {
+        console.error('Import error:', error);
+        addImportStep(`Lỗi: ${String(error)}`, importProgressPercent);
+        setImportReport({
+          status: 'error',
+          projectName: 'Không xác định',
+          duration: Date.now() - importStartTime.current,
+          recordCounts: {},
+          fileCount: 0,
+          zipSize: file.size,
+          errors: [String(error)],
+        });
+        toast({ title: 'Lỗi khôi phục', description: String(error), variant: 'destructive' });
+      }
     } finally {
       setIsImporting(false);
       event.target.value = '';
@@ -2019,9 +2044,20 @@ export default function AdminBackupRestore() {
 
       {/* Current step */}
       {isRunning && (
-        <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-          <Loader2 className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
-          <span className="text-sm font-medium">{currentStep}</span>
+        <div className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-primary flex-shrink-0" />
+            <span className="text-sm font-medium">{currentStep}</span>
+          </div>
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            className="h-7 text-xs gap-1 flex-shrink-0"
+            onClick={() => setShowCancelConfirm(true)}
+          >
+            <XCircle className="w-3 h-3" />
+            Hủy
+          </Button>
         </div>
       )}
 
@@ -2059,6 +2095,38 @@ export default function AdminBackupRestore() {
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleCancelConfirm = () => {
+    cancelRef.current = true;
+    setShowCancelConfirm(false);
+    if (isExporting) {
+      addExportStep('⚠️ Đã hủy bởi người dùng');
+      setIsExporting(false);
+      setExportReport({
+        status: 'error',
+        projectName: groups.find(g => g.id === selectedGroupId)?.name || '',
+        duration: Date.now() - exportStartTime.current,
+        recordCounts: {},
+        fileCount: 0,
+        zipSize: 0,
+        errors: ['Quá trình sao lưu đã bị hủy bởi người dùng'],
+      });
+    }
+    if (isImporting) {
+      addImportStep('⚠️ Đã hủy bởi người dùng', importProgressPercent);
+      setIsImporting(false);
+      setImportReport({
+        status: 'error',
+        projectName: 'Không xác định',
+        duration: Date.now() - importStartTime.current,
+        recordCounts: {},
+        fileCount: 0,
+        zipSize: 0,
+        errors: ['Quá trình khôi phục đã bị hủy bởi người dùng. Dữ liệu đã nhập một phần có thể cần được xóa thủ công.'],
+      });
+    }
+    toast({ title: 'Đã hủy', description: 'Quá trình đã bị dừng lại', variant: 'destructive' });
   };
 
   const handleOpenDialog = () => {
@@ -2361,6 +2429,26 @@ export default function AdminBackupRestore() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận hủy</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isExporting 
+                ? 'Bạn có chắc muốn hủy quá trình sao lưu? Tiến trình hiện tại sẽ bị mất.'
+                : 'Bạn có chắc muốn hủy quá trình khôi phục? Dữ liệu đã nhập một phần có thể cần được xóa thủ công.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Tiếp tục</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancelConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Hủy quá trình
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
