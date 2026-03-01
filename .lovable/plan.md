@@ -1,4 +1,33 @@
 
+# Quy tắc hệ thống
+
+## 🔴 QUY TẮC BẮT BUỘC: Cơ chế hoàn tác xóa (Undo Delete)
+
+**Áp dụng cho TOÀN BỘ hệ thống, bao gồm các tính năng tương lai.**
+
+- Mọi thao tác xóa dữ liệu đều PHẢI sử dụng `deleteWithUndo()` từ `src/lib/deleteWithUndo.ts`
+- Hiển thị toast "Đã xóa" kèm nút **Hoàn tác** với đếm ngược **5 giây**
+- Trong 5 giây, người dùng nhấn Hoàn tác → khôi phục ngay lập tức
+- Sau 5 giây → xóa vĩnh viễn
+- **KHÔNG BAO GIỜ** xóa trực tiếp mà không qua cơ chế undo
+
+### Cách sử dụng:
+```ts
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
+
+deleteWithUndo({
+  description: 'Đã xóa task "Tên task"',
+  onDelete: async () => {
+    await supabase.from('tasks').delete().eq('id', taskId);
+  },
+  onUndo: () => {
+    // Khôi phục lại UI state nếu đã ẩn item trước đó
+  },
+});
+```
+
+---
+
 # Kế hoạch: Xuất Minh chứng Dự án (Evidence Export)
 
 ## Tổng quan
