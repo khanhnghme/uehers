@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import UserAvatar from '@/components/UserAvatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -757,6 +758,92 @@ export default function MemberManagement() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <Tabs defaultValue="members" className="w-full">
+          <TabsList className="w-full max-w-md">
+            <TabsTrigger value="members" className="flex-1 gap-2">
+              <Users className="w-4 h-4" />
+              Thành viên ({members.length})
+            </TabsTrigger>
+            <TabsTrigger value="pending" className="flex-1 gap-2">
+              <UserCheck className="w-4 h-4" />
+              Chờ duyệt
+              {pendingMembers.length > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
+                  {pendingMembers.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Pending Accounts */}
+          <TabsContent value="pending" className="space-y-4">
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="p-4 flex items-start gap-3">
+                <Info className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-foreground">Duyệt tài khoản</p>
+                  <p className="text-muted-foreground mt-1">
+                    Các tài khoản do thành viên tự đăng ký sẽ xuất hiện tại đây. Admin cần duyệt hoặc từ chối trước khi họ có thể sử dụng hệ thống.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {pendingMembers.length === 0 ? (
+              <Card>
+                <CardContent className="py-16">
+                  <div className="text-center text-muted-foreground">
+                    <UserCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">Không có tài khoản nào chờ duyệt</p>
+                    <p className="text-sm mt-1">Tất cả tài khoản đăng ký đã được xử lý</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {pendingMembers.map((member) => (
+                  <Card key={member.id} className="border-amber-200 dark:border-amber-800">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <UserAvatar
+                          src={member.avatar_url}
+                          name={member.full_name}
+                          size="lg"
+                          className="border-2 border-background"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold truncate">{member.full_name || '(Chưa có tên)'}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Hash className="w-3.5 h-3.5" />
+                            <span>{member.student_id}</span>
+                            <span>•</span>
+                            <Mail className="w-3.5 h-3.5" />
+                            <span className="truncate">{member.email}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Đăng ký lúc: {new Date(member.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button size="sm" onClick={() => handleApprovePending(member)} className="gap-1.5">
+                            <Check className="w-4 h-4" /> Duyệt
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleRejectPending(member)} className="gap-1.5">
+                            <Trash2 className="w-4 h-4" /> Từ chối
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Tab: Members List */}
+          <TabsContent value="members" className="space-y-4">
+
         {/* Info Card */}
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4 flex items-start gap-3">
@@ -812,59 +899,6 @@ export default function MemberManagement() {
             </Button>
           </div>
         )}
-
-        {/* Pending Accounts */}
-        <Card className={pendingMembers.length > 0 ? "border-amber-200 dark:border-amber-800" : ""}>
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-amber-600" />
-              Duyệt tài khoản ({pendingMembers.length})
-            </CardTitle>
-            <CardDescription>
-              Các tài khoản tự đăng ký đang chờ Admin phê duyệt
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {pendingMembers.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <UserCheck className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">Không có tài khoản nào chờ duyệt</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingMembers.map((member) => (
-                  <div key={member.id} className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50">
-                    <UserAvatar
-                      src={member.avatar_url}
-                      name={member.full_name}
-                      size="lg"
-                      className="border-2 border-background"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{member.full_name || '(Chưa có tên)'}</p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>{member.student_id}</span>
-                        <span>•</span>
-                        <span className="truncate">{member.email}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Đăng ký: {new Date(member.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" onClick={() => handleApprovePending(member)}>
-                        <Check className="w-4 h-4 mr-1" /> Duyệt
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleRejectPending(member)}>
-                        <Trash2 className="w-4 h-4 mr-1" /> Xóa
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Members List */}
         <Card>
@@ -1006,6 +1040,8 @@ export default function MemberManagement() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Change Password Dialog */}
