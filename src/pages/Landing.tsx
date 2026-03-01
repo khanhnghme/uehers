@@ -808,7 +808,7 @@ export default function Landing() {
                   
                   <button onClick={openIntro} className="group relative cursor-pointer focus:outline-none">
                     {/* Main text */}
-                    <span className="relative z-10 block text-[3.2rem] font-heading font-black tracking-[0.18em] text-gradient group-hover:opacity-80 transition-opacity duration-700 uppercase select-none" style={{ fontStyle: 'italic' }}>
+                    <span className="relative z-10 block text-[2.5rem] font-heading font-semibold tracking-[0.3em] text-muted-foreground/30 group-hover:text-gradient group-hover:tracking-[0.4em] transition-all duration-700 uppercase select-none">
                       Khám phá
                     </span>
                     {/* Underline draw animation */}
