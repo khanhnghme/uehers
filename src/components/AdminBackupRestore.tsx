@@ -2122,207 +2122,241 @@ export default function AdminBackupRestore() {
               )}
             </DialogHeader>
 
-            <ScrollArea className="flex-1 px-6 py-4">
-              {/* === EXPORT IN PROGRESS / REPORT === */}
-              {(isExporting || exportReport) ? (
-                <div className="max-w-2xl mx-auto">
-                  {exportReport ? (
-                    <>
-                      {renderReport(exportReport, 'export')}
-                      <div className="mt-6 flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => { setExportReport(null); setExportProgress(0); }}>
-                          Quay lại
-                        </Button>
-                        <Button onClick={() => { setShowMainDialog(false); setExportReport(null); setExportProgress(0); }}>
-                          Đóng
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2 mb-4">
-                        <Download className="w-5 h-5 text-primary" />
-                        <h3 className="font-semibold">Đang sao lưu: {groups.find(g => g.id === selectedGroupId)?.name}</h3>
-                      </div>
-                      {renderProgressDialog(exportSteps, exportStepLabel, exportProgress, isExporting)}
-                    </>
-                  )}
-                </div>
-              ) : (isImporting || importReport) ? (
-                /* === IMPORT IN PROGRESS / REPORT === */
-                <div className="max-w-2xl mx-auto">
-                  {importReport ? (
-                    <>
-                      {renderReport(importReport, 'import')}
-                      <div className="mt-6 flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => { setImportReport(null); setImportProgressPercent(0); }}>
-                          Quay lại
-                        </Button>
-                        <Button onClick={() => { setShowMainDialog(false); setImportReport(null); }}>
-                          Đóng
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2 mb-4">
-                        <Upload className="w-5 h-5 text-primary" />
-                        <h3 className="font-semibold">Đang khôi phục dữ liệu...</h3>
-                      </div>
-                      {renderProgressDialog(importSteps, importStepLabel, importProgressPercent, isImporting)}
-                    </>
-                  )}
-                </div>
-              ) : activePage === 'backup' ? (
-                /* === BACKUP PAGE === */
-                <div className="max-w-2xl mx-auto space-y-5">
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">Chọn Project</Label>
-                    <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn project để sao lưu..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups.map(group => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Filter Options */}
-                  <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full justify-between text-xs h-8">
-                        <span className="flex items-center gap-1.5">
-                          <Filter className="w-3 h-3" />
-                          Lọc nội dung ({selectedCount}/7)
-                        </span>
-                        <ChevronDown className={`w-3 h-3 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-2">
-                      <div className="space-y-2 p-3 bg-muted/50 rounded-md">
-                        <div className="flex gap-2 mb-2">
-                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={selectAllOptions}>
-                            Chọn tất cả
+            <ScrollArea className="flex-1">
+              <div className="h-full px-8 py-6">
+                {/* === EXPORT IN PROGRESS / REPORT === */}
+                {(isExporting || exportReport) ? (
+                  <div className="max-w-3xl mx-auto">
+                    {exportReport ? (
+                      <>
+                        {renderReport(exportReport, 'export')}
+                        <div className="mt-6 flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => { setExportReport(null); setExportProgress(0); }}>
+                            Quay lại
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={deselectAllOptions}>
-                            Bỏ chọn
+                          <Button onClick={() => { setShowMainDialog(false); setExportReport(null); setExportProgress(0); }}>
+                            Đóng
                           </Button>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <Download className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-lg">Đang sao lưu</h3>
+                            <p className="text-sm text-muted-foreground">{groups.find(g => g.id === selectedGroupId)?.name}</p>
+                          </div>
+                        </div>
+                        {renderProgressDialog(exportSteps, exportStepLabel, exportProgress, isExporting)}
+                      </>
+                    )}
+                  </div>
+                ) : (isImporting || importReport) ? (
+                  <div className="max-w-3xl mx-auto">
+                    {importReport ? (
+                      <>
+                        {renderReport(importReport, 'import')}
+                        <div className="mt-6 flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => { setImportReport(null); setImportProgressPercent(0); }}>
+                            Quay lại
+                          </Button>
+                          <Button onClick={() => { setShowMainDialog(false); setImportReport(null); }}>
+                            Đóng
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <Upload className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-lg">Đang khôi phục dữ liệu</h3>
+                            <p className="text-sm text-muted-foreground">Vui lòng không đóng cửa sổ này</p>
+                          </div>
+                        </div>
+                        {renderProgressDialog(importSteps, importStepLabel, importProgressPercent, isImporting)}
+                      </>
+                    )}
+                  </div>
+                ) : activePage === 'backup' ? (
+                  /* === BACKUP PAGE === */
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
+                    {/* Left: Controls */}
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="font-semibold text-lg mb-1">Sao lưu Project</h3>
+                        <p className="text-sm text-muted-foreground">Chọn project và tùy chỉnh nội dung cần sao lưu</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Chọn Project</Label>
+                        <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Chọn project để sao lưu..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groups.map(group => (
+                              <SelectItem key={group.id} value={group.id}>
+                                {group.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Filter Options */}
+                      <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="outline" size="sm" className="w-full justify-between text-xs h-9">
+                            <span className="flex items-center gap-1.5">
+                              <Filter className="w-3.5 h-3.5" />
+                              Tùy chỉnh nội dung sao lưu ({selectedCount}/7)
+                            </span>
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                          </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-2">
+                          <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" className="h-7 text-xs px-3" onClick={selectAllOptions}>
+                                Chọn tất cả
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 text-xs px-3" onClick={deselectAllOptions}>
+                                Bỏ chọn
+                              </Button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2.5">
+                              {[
+                                { key: 'includeMessages', label: 'Tin nhắn', icon: MessageSquare },
+                                { key: 'includeTaskNotes', label: 'Ghi chú task', icon: FileText },
+                                { key: 'includeTaskComments', label: 'Bình luận', icon: MessageCircle },
+                                { key: 'includeResources', label: 'Tài nguyên', icon: FolderOpen },
+                                { key: 'includeActivityLogs', label: 'Nhật ký', icon: History },
+                                { key: 'includeScores', label: 'Điểm số', icon: Award },
+                                { key: 'includeFeedbacks', label: 'Phản hồi', icon: HelpCircle },
+                              ].map(({ key, label, icon: Icon }) => (
+                                <div key={key} className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/80 transition-colors">
+                                  <Checkbox 
+                                    id={`dialog-${key}`} 
+                                    checked={exportOptions[key as keyof ExportOptions]}
+                                    onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, [key]: !!checked }))}
+                                  />
+                                  <label htmlFor={`dialog-${key}`} className="text-sm flex items-center gap-1.5 cursor-pointer flex-1">
+                                    <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                                    {label}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+
+                      <Button 
+                        onClick={exportProject} 
+                        disabled={!selectedGroupId || isExporting}
+                        className="w-full gap-2 h-12 text-base"
+                        size="lg"
+                      >
+                        <Download className="w-5 h-5" />
+                        Bắt đầu sao lưu
+                      </Button>
+                    </div>
+
+                    {/* Right: Info panel */}
+                    <div className="space-y-4">
+                      <div className="p-5 rounded-xl bg-muted/30 border h-full">
+                        <div className="flex items-center gap-2 mb-4">
+                          <CheckCircle className="w-5 h-5 text-emerald-500" />
+                          <h4 className="font-semibold">Nội dung được sao lưu</h4>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
                           {[
-                            { key: 'includeMessages', label: 'Tin nhắn', icon: MessageSquare },
-                            { key: 'includeTaskNotes', label: 'Ghi chú task', icon: FileText },
-                            { key: 'includeTaskComments', label: 'Bình luận', icon: MessageCircle },
-                            { key: 'includeResources', label: 'Tài nguyên', icon: FolderOpen },
-                            { key: 'includeActivityLogs', label: 'Nhật ký', icon: History },
-                            { key: 'includeScores', label: 'Điểm số', icon: Award },
-                            { key: 'includeFeedbacks', label: 'Phản hồi', icon: HelpCircle },
-                          ].map(({ key, label, icon: Icon }) => (
-                            <div key={key} className="flex items-center gap-2">
-                              <Checkbox 
-                                id={key} 
-                                checked={exportOptions[key as keyof ExportOptions]}
-                                onCheckedChange={(checked) => setExportOptions(prev => ({ ...prev, [key]: !!checked }))}
-                                className="h-3.5 w-3.5"
-                              />
-                              <label htmlFor={key} className="text-xs flex items-center gap-1 cursor-pointer">
-                                <Icon className="w-3 h-3 text-muted-foreground" />
-                                {label}
-                              </label>
+                            { icon: Settings, label: 'Thông tin project' },
+                            { icon: File, label: 'File đính kèm' },
+                            { icon: MessageSquare, label: 'Tin nhắn' },
+                            { icon: FileText, label: 'Ghi chú task' },
+                            { icon: MessageCircle, label: 'Bình luận task' },
+                            { icon: FolderOpen, label: 'Tài nguyên dự án' },
+                            { icon: History, label: 'Nhật ký hoạt động' },
+                            { icon: Award, label: 'Điểm số đầy đủ' },
+                            { icon: Bug, label: 'Lịch sử điều chỉnh' },
+                            { icon: HelpCircle, label: 'Phản hồi & bình luận' },
+                            { icon: Shield, label: 'Kiểm tra toàn vẹn' },
+                            { icon: FolderArchive, label: 'Phân loại thư mục' },
+                          ].map(({ icon: Icon, label }, i) => (
+                            <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-background/60 border border-border/50">
+                              <Icon className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                              <span className="text-sm">{label}</span>
                             </div>
                           ))}
                         </div>
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                    </div>
+                  </div>
+                ) : (
+                  /* === RESTORE PAGE === */
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
+                    {/* Left: Upload area */}
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="font-semibold text-lg mb-1">Khôi phục Project</h3>
+                        <p className="text-sm text-muted-foreground">Chọn file ZIP từ hệ thống sao lưu để khôi phục</p>
+                      </div>
 
-                  <Button 
-                    onClick={exportProject} 
-                    disabled={!selectedGroupId || isExporting}
-                    className="w-full gap-2"
-                    size="lg"
-                  >
-                    <Download className="w-4 h-4" />
-                    Bắt đầu sao lưu
-                  </Button>
+                      <input 
+                        ref={fileInputRef}
+                        type="file" 
+                        accept=".zip" 
+                        onChange={importProject}
+                        disabled={isImporting}
+                        className="hidden"
+                      />
+                      <button 
+                        onClick={handleImportClick}
+                        disabled={isImporting}
+                        className="w-full flex flex-col items-center justify-center gap-3 p-8 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group"
+                      >
+                        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Upload className="w-7 h-7 text-primary" />
+                        </div>
+                        <div className="text-center">
+                          <p className="font-medium">Nhấn để chọn file ZIP</p>
+                          <p className="text-xs text-muted-foreground mt-1">Hỗ trợ file .zip từ hệ thống sao lưu v5.0</p>
+                        </div>
+                      </button>
+                    </div>
 
-                  {/* Supported data info */}
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border">
-                    <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                    <div className="text-xs text-muted-foreground">
-                      <p className="font-medium mb-1 text-foreground">Hỗ trợ sao lưu:</p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                        {[
-                          [Settings, 'Thông tin project'],
-                          [File, 'File đính kèm'],
-                          [MessageSquare, 'Tin nhắn'],
-                          [FileText, 'Ghi chú task'],
-                          [MessageCircle, 'Bình luận task'],
-                          [FolderOpen, 'Tài nguyên dự án'],
-                          [History, 'Nhật ký hoạt động'],
-                          [Award, 'Điểm số đầy đủ'],
-                          [Bug, 'Lịch sử điều chỉnh'],
-                          [HelpCircle, 'Phản hồi & bình luận'],
-                          [Shield, 'Kiểm tra toàn vẹn'],
-                          [FolderArchive, 'Phân loại thư mục'],
-                        ].map(([Icon, label], i) => {
-                          const IconComp = Icon as any;
-                          return (
-                            <span key={i} className="flex items-center gap-1">
-                              <IconComp className="w-3 h-3" /> {label as string}
-                            </span>
-                          );
-                        })}
+                    {/* Right: Notes */}
+                    <div className="space-y-4">
+                      <div className="p-5 rounded-xl bg-amber-500/5 border border-amber-500/20 h-full">
+                        <div className="flex items-center gap-2 mb-4">
+                          <AlertTriangle className="w-5 h-5 text-amber-600" />
+                          <h4 className="font-semibold">Lưu ý quan trọng</h4>
+                        </div>
+                        <div className="space-y-3">
+                          {[
+                            { title: 'Tạo project mới', desc: 'Dữ liệu sẽ được khôi phục thành một project hoàn toàn mới, không ghi đè lên project hiện tại.' },
+                            { title: 'Quyền Leader', desc: 'Admin hiện tại sẽ tự động trở thành Leader của project được khôi phục.' },
+                            { title: 'Kiểm tra toàn vẹn', desc: 'Hệ thống tự động kiểm tra tính toàn vẹn dữ liệu trước khi khôi phục (v5.0+).' },
+                            { title: 'Liên kết thành viên', desc: 'Thành viên sẽ được liên kết tự động dựa trên mã số sinh viên (MSSV).' },
+                          ].map((item, i) => (
+                            <div key={i} className="p-3 rounded-lg bg-background/60 border border-border/50">
+                              <p className="text-sm font-medium mb-0.5">{item.title}</p>
+                              <p className="text-xs text-muted-foreground">{item.desc}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                /* === RESTORE PAGE === */
-                <div className="max-w-2xl mx-auto space-y-5">
-                  <div className="space-y-3">
-                    <Label className="text-sm font-medium">Chọn file ZIP backup</Label>
-                    <input 
-                      ref={fileInputRef}
-                      type="file" 
-                      accept=".zip" 
-                      onChange={importProject}
-                      disabled={isImporting}
-                      className="hidden"
-                    />
-                    <Button 
-                      variant="outline" 
-                      onClick={handleImportClick}
-                      disabled={isImporting}
-                      className="w-full gap-2 h-20 border-dashed border-2"
-                    >
-                      <div className="flex flex-col items-center gap-1">
-                        <Upload className="w-6 h-6 text-muted-foreground" />
-                        <span className="text-sm">Nhấn để chọn file ZIP</span>
-                        <span className="text-xs text-muted-foreground">Hỗ trợ file .zip từ hệ thống sao lưu v5.0</span>
-                      </div>
-                    </Button>
-                  </div>
-
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-xs text-amber-700 dark:text-amber-400">
-                      <p className="font-medium mb-1">Lưu ý quan trọng:</p>
-                      <ul className="list-disc list-inside space-y-0.5">
-                        <li>Dữ liệu sẽ được tạo thành project mới</li>
-                        <li>Admin hiện tại sẽ trở thành Leader</li>
-                        <li>Kiểm tra toàn vẹn tự động (v5.0+)</li>
-                        <li>Thành viên sẽ được liên kết theo MSSV</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </ScrollArea>
           </div>
         </DialogContent>
