@@ -934,9 +934,12 @@ export default function Landing() {
 
       <style>{`
         @keyframes shimmer-gradient {
-          0% { transform: translateX(-100%); background-image: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.3), transparent); }
-          50% { background-image: linear-gradient(90deg, transparent, hsl(var(--accent) / 0.35), transparent); }
-          100% { transform: translateX(100%); background-image: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.3), transparent); }
+          0%, 100% { transform: translateX(-100%); opacity: 0; }
+          10% { opacity: 1; }
+          45% { background: linear-gradient(90deg, transparent 20%, hsl(var(--primary) / 0.3) 50%, transparent 80%); }
+          55% { background: linear-gradient(90deg, transparent 20%, hsl(var(--accent) / 0.3) 50%, transparent 80%); }
+          90% { opacity: 1; }
+          100% { transform: translateX(100%); opacity: 0; }
         }
         @keyframes slide-in-from-right {
           from { opacity: 0; transform: translateX(24px); }
