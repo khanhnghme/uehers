@@ -1,7 +1,7 @@
 # 🚀 HƯỚNG DẪN SETUP VÀ TÁI TẠO WEBSITE TEAMWORKS UEH
-# COMPLETE REBUILD GUIDE - VERSION 3.0
+# COMPLETE REBUILD GUIDE - VERSION 5.0
 
-> **Phiên bản:** 4.0 (UNDO DELETE + SYSTEM UPDATE)  
+> **Phiên bản:** 5.0 (FULL RLS POLICIES + DETAILED COLUMNS)  
 > **Cập nhật lần cuối:** 02/03/2026  
 > **Tác giả:** Nguyễn Hoàng Khánh (khanhngh.ueh@gmail.com)  
 > **Đơn vị:** Trường Đại học Kinh tế TP. Hồ Chí Minh (UEH)  
@@ -1106,11 +1106,14 @@ CREATE TABLE public.project_resources (
   folder_id UUID REFERENCES resource_folders(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   description TEXT,
-  file_path TEXT NOT NULL,
-  storage_name TEXT NOT NULL,
+  resource_type TEXT NOT NULL DEFAULT 'file',
+  file_path TEXT,
+  storage_name TEXT,
   file_type TEXT,
   file_size BIGINT NOT NULL DEFAULT 0,
+  link_url TEXT,
   category TEXT DEFAULT 'general',
+  display_order INTEGER DEFAULT 0,
   uploaded_by UUID NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -1119,6 +1122,32 @@ CREATE TABLE public.project_resources (
 CREATE INDEX idx_resources_group ON public.project_resources(group_id);
 CREATE INDEX idx_resources_folder ON public.project_resources(folder_id);
 ```
+
+| Column | Type | Nullable | Default | Mô tả | Ví dụ |
+|--------|------|----------|---------|-------|-------|
+| id | UUID | ❌ | gen_random_uuid() | Primary key | |
+| group_id | UUID | ❌ | - | FK → groups.id | |
+| folder_id | UUID | ✅ | NULL | FK → resource_folders.id | |
+| name | TEXT | ❌ | - | Tên tài liệu | `Báo cáo tuần 1` |
+| description | TEXT | ✅ | NULL | Mô tả | |
+| resource_type | TEXT | ❌ | 'file' | Loại: 'file' hoặc 'link' | `file` |
+| file_path | TEXT | ✅ | NULL | Path trong Storage (nếu type=file) | `grp1/1706198400000.pdf` |
+| storage_name | TEXT | ✅ | NULL | Tên file trong storage | `1706198400000-a7b2c3.pdf` |
+| file_type | TEXT | ✅ | NULL | MIME type | `application/pdf` |
+| file_size | BIGINT | ❌ | 0 | Kích thước file (bytes) | `1048576` |
+| link_url | TEXT | ✅ | NULL | URL (nếu type=link) | `https://docs.google.com/...` |
+| category | TEXT | ✅ | 'general' | Danh mục tài liệu | `template` |
+| display_order | INTEGER | ✅ | 0 | Thứ tự hiển thị | `1` |
+| uploaded_by | UUID | ❌ | - | Người upload | |
+| created_at | TIMESTAMPTZ | ❌ | now() | Thời điểm tạo | |
+| updated_at | TIMESTAMPTZ | ❌ | now() | Thời điểm cập nhật | |
+
+**resource_type values:**
+
+| Value | Mô tả |
+|-------|-------|
+| `file` | File upload lên Storage |
+| `link` | Link URL bên ngoài |
 
 ---
 
@@ -1557,13 +1586,13 @@ CREATE TRIGGER set_task_slug_trigger
 
 ---
 
-### 3.5 ROW LEVEL SECURITY (RLS) - CHI TIẾT
+### 3.5 ROW LEVEL SECURITY (RLS) - CHI TIẾT TẤT CẢ 28 BẢNG
 
 #### 3.5.1 Enable RLS (BẮT BUỘC!)
 
 ```sql
 -- =============================================
--- BƯỚC 5: ENABLE RLS CHO TẤT CẢ BẢNG
+-- BƯỚC 5: ENABLE RLS CHO TẤT CẢ 28 BẢNG
 -- =============================================
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -1593,98 +1622,817 @@ ALTER TABLE public.resource_folders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pending_approvals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.feedbacks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.feedback_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_error_logs ENABLE ROW LEVEL SECURITY;
 ```
 
-#### 3.5.2 Policies chi tiết - PROFILES
+---
+
+#### 3.5.2 Policies - `profiles`
+
+**Quyền có:** SELECT, INSERT, UPDATE  
+**Quyền KHÔNG có:** DELETE
 
 ```sql
--- profiles: SELECT
-CREATE POLICY "profiles_select_policy" ON public.profiles
+-- Xem profile đã duyệt, profile bản thân, hoặc admin xem tất cả
+CREATE POLICY "Users can view all approved profiles" ON public.profiles
 FOR SELECT USING (
-  -- User có thể xem profile của mình
-  auth.uid() = id
-  -- Hoặc admin có thể xem tất cả
-  OR public.is_admin(auth.uid())
-  -- Hoặc cùng nhóm
-  OR EXISTS (
-    SELECT 1 FROM public.group_members gm1
-    JOIN public.group_members gm2 ON gm1.group_id = gm2.group_id
-    WHERE gm1.user_id = auth.uid() AND gm2.user_id = profiles.id
+  (is_approved = true) OR (id = auth.uid()) OR is_admin(auth.uid())
+);
+
+-- Xem profile của member trong nhóm public
+CREATE POLICY "Public can view profiles of public group members" ON public.profiles
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM group_members gm
+    JOIN groups g ON g.id = gm.group_id
+    WHERE gm.user_id = profiles.id AND g.is_public = true AND g.show_members_public = true
   )
 );
 
--- profiles: UPDATE
-CREATE POLICY "profiles_update_policy" ON public.profiles
-FOR UPDATE USING (
-  auth.uid() = id OR public.is_admin(auth.uid())
-);
+-- User tạo profile bản thân (qua trigger handle_new_user)
+CREATE POLICY "Users can insert own profile" ON public.profiles
+FOR INSERT WITH CHECK (id = auth.uid());
 
--- profiles: INSERT (chỉ qua trigger)
-CREATE POLICY "profiles_insert_policy" ON public.profiles
-FOR INSERT WITH CHECK (
-  auth.uid() = id OR public.is_admin(auth.uid())
-);
+-- User cập nhật profile bản thân
+CREATE POLICY "Users can update own profile" ON public.profiles
+FOR UPDATE USING (id = auth.uid());
+
+-- Admin cập nhật bất kỳ profile
+CREATE POLICY "Admins can update any profile" ON public.profiles
+FOR UPDATE USING (is_admin(auth.uid()));
 ```
 
-#### 3.5.3 Policies chi tiết - USER_ROLES
+---
+
+#### 3.5.3 Policies - `user_roles`
+
+**Quyền có:** SELECT, ALL (admin only)  
+**⚠️ BẢO MẬT QUAN TRỌNG:** Chỉ admin mới INSERT/UPDATE/DELETE role
 
 ```sql
--- user_roles: Chỉ admin mới có quyền thao tác
-CREATE POLICY "user_roles_select_policy" ON public.user_roles
+-- User xem role bản thân, admin xem tất cả
+CREATE POLICY "Users can view own roles" ON public.user_roles
 FOR SELECT USING (
-  public.is_admin(auth.uid()) OR user_id = auth.uid()
+  (user_id = auth.uid()) OR is_admin(auth.uid())
 );
 
-CREATE POLICY "user_roles_insert_policy" ON public.user_roles
-FOR INSERT WITH CHECK (
-  public.is_admin(auth.uid())
-);
-
-CREATE POLICY "user_roles_update_policy" ON public.user_roles
-FOR UPDATE USING (
-  public.is_admin(auth.uid())
-);
-
-CREATE POLICY "user_roles_delete_policy" ON public.user_roles
-FOR DELETE USING (
-  public.is_admin(auth.uid())
-);
+-- Chỉ admin mới có quyền thao tác toàn bộ
+CREATE POLICY "Only admin can manage roles" ON public.user_roles
+FOR ALL USING (is_admin(auth.uid()));
 ```
 
-#### 3.5.4 Policies chi tiết - GROUPS
+---
+
+#### 3.5.4 Policies - `groups`
+
+**Quyền có:** SELECT, INSERT, UPDATE, DELETE
 
 ```sql
--- groups: SELECT
-CREATE POLICY "groups_select_policy" ON public.groups
+-- Xem nhóm: member, admin, hoặc nhóm public
+CREATE POLICY "Members can view their groups" ON public.groups
 FOR SELECT USING (
-  -- Public groups
-  is_public = true
-  -- Hoặc admin
-  OR public.is_admin(auth.uid())
-  -- Hoặc là member
-  OR public.is_group_member(auth.uid(), id)
+  is_group_member(auth.uid(), id) OR is_admin(auth.uid()) OR (is_public = true)
 );
 
--- groups: INSERT (leader/admin)
-CREATE POLICY "groups_insert_policy" ON public.groups
+-- Nhóm public có share_token → ai cũng xem được
+CREATE POLICY "Public can view shared groups" ON public.groups
+FOR SELECT USING (
+  (is_public = true) AND (share_token IS NOT NULL)
+);
+
+-- Chỉ leader/admin tạo nhóm
+CREATE POLICY "Leaders and admins can create groups" ON public.groups
 FOR INSERT WITH CHECK (
-  public.is_admin(auth.uid()) OR public.is_leader(auth.uid())
+  has_role(auth.uid(), 'leader'::app_role) OR is_admin(auth.uid())
 );
 
--- groups: UPDATE (leader của nhóm hoặc admin)
-CREATE POLICY "groups_update_policy" ON public.groups
-FOR UPDATE USING (
-  public.is_admin(auth.uid()) OR public.is_group_leader(auth.uid(), id)
+-- Leader nhóm hoặc admin mới sửa
+CREATE POLICY "Group leaders can update groups" ON public.groups
+FOR UPDATE USING (is_group_leader(auth.uid(), id));
+
+-- Leader nhóm mới xóa
+CREATE POLICY "Group leaders can delete groups" ON public.groups
+FOR DELETE USING (is_group_leader(auth.uid(), id));
+```
+
+---
+
+#### 3.5.5 Policies - `group_members`
+
+**Quyền có:** SELECT, ALL (leader)
+
+```sql
+-- Member cùng nhóm hoặc admin xem được
+CREATE POLICY "Members can view group members" ON public.group_members
+FOR SELECT USING (
+  is_group_member(auth.uid(), group_id) OR is_admin(auth.uid())
 );
 
--- groups: DELETE
-CREATE POLICY "groups_delete_policy" ON public.groups
-FOR DELETE USING (
-  public.is_admin(auth.uid()) OR created_by = auth.uid()
+-- Public xem member nếu nhóm public + show_members_public
+CREATE POLICY "Public can view members of public groups" ON public.group_members
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM groups g
+    WHERE g.id = group_members.group_id AND g.is_public = true AND g.show_members_public = true
+  )
+);
+
+-- Leader quản lý toàn bộ (thêm/xóa/sửa member)
+CREATE POLICY "Leaders can manage group members" ON public.group_members
+FOR ALL USING (is_group_leader(auth.uid(), group_id));
+```
+
+---
+
+#### 3.5.6 Policies - `stages`
+
+**Quyền có:** SELECT, ALL (leader)
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view stages" ON public.stages
+FOR SELECT USING (
+  is_group_member(auth.uid(), group_id) OR is_admin(auth.uid())
+);
+
+-- Public xem stages nếu nhóm public
+CREATE POLICY "Public can view stages of public groups" ON public.stages
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM groups g WHERE g.id = stages.group_id AND g.is_public = true
+  )
+);
+
+-- Leader quản lý toàn bộ stages
+CREATE POLICY "Leaders can manage stages" ON public.stages
+FOR ALL USING (is_group_leader(auth.uid(), group_id));
+```
+
+---
+
+#### 3.5.7 Policies - `tasks`
+
+**Quyền có:** SELECT, INSERT, UPDATE, DELETE
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view tasks" ON public.tasks
+FOR SELECT USING (
+  is_group_member(auth.uid(), group_id) OR is_admin(auth.uid())
+);
+
+-- Public xem tasks nếu nhóm public
+CREATE POLICY "Public can view tasks of public groups" ON public.tasks
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM groups g WHERE g.id = tasks.group_id AND g.is_public = true
+  )
+);
+
+-- Leader tạo task
+CREATE POLICY "Leaders can create tasks" ON public.tasks
+FOR INSERT WITH CHECK (is_group_leader(auth.uid(), group_id));
+
+-- Leader sửa tất cả field
+CREATE POLICY "Leaders can update all task fields" ON public.tasks
+FOR UPDATE USING (is_group_leader(auth.uid(), group_id));
+
+-- Assignee sửa status + submission
+CREATE POLICY "Assignees can update task status and submission" ON public.tasks
+FOR UPDATE USING (is_task_assignee(auth.uid(), id))
+WITH CHECK (is_task_assignee(auth.uid(), id));
+
+-- Leader xóa task
+CREATE POLICY "Leaders can delete tasks" ON public.tasks
+FOR DELETE USING (is_group_leader(auth.uid(), group_id));
+```
+
+---
+
+#### 3.5.8 Policies - `task_assignments`
+
+**Quyền có:** SELECT, ALL (leader)
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view task assignments" ON public.task_assignments
+FOR SELECT USING (
+  (EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.id = task_assignments.task_id AND is_group_member(auth.uid(), t.group_id)
+  )) OR is_admin(auth.uid())
+);
+
+-- Public xem assignments nếu nhóm public
+CREATE POLICY "Public can view task assignments of public groups" ON public.task_assignments
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM tasks t
+    JOIN groups g ON g.id = t.group_id
+    WHERE t.id = task_assignments.task_id AND g.is_public = true
+  )
+);
+
+-- Leader quản lý assignments
+CREATE POLICY "Leaders can manage task assignments" ON public.task_assignments
+FOR ALL USING (
+  EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.id = task_assignments.task_id AND is_group_leader(auth.uid(), t.group_id)
+  )
 );
 ```
 
-**(Tiếp tục cho tất cả các bảng khác với logic tương tự)**
+---
+
+#### 3.5.9 Policies - `submission_history`
+
+**Quyền có:** SELECT, INSERT  
+**Quyền KHÔNG có:** UPDATE, DELETE
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view submissions" ON public.submission_history
+FOR SELECT USING (
+  (EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.id = submission_history.task_id AND is_group_member(auth.uid(), t.group_id)
+  )) OR is_admin(auth.uid())
+);
+
+-- Assignee, leader, hoặc admin nộp bài
+CREATE POLICY "Members and leaders can insert submissions" ON public.submission_history
+FOR INSERT WITH CHECK (
+  (user_id = auth.uid()) AND (
+    is_task_assignee(auth.uid(), task_id)
+    OR (EXISTS (
+      SELECT 1 FROM tasks t
+      WHERE t.id = submission_history.task_id AND is_group_leader(auth.uid(), t.group_id)
+    ))
+    OR is_admin(auth.uid())
+  )
+);
+```
+
+---
+
+#### 3.5.10 Policies - `task_scores`
+
+**Quyền có:** SELECT, ALL (leader)
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view scores" ON public.task_scores
+FOR SELECT USING (
+  (EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.id = task_scores.task_id AND is_group_member(auth.uid(), t.group_id)
+  )) OR is_admin(auth.uid())
+);
+
+-- Leader quản lý điểm
+CREATE POLICY "Leaders can manage scores" ON public.task_scores
+FOR ALL USING (
+  EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.id = task_scores.task_id AND is_group_leader(auth.uid(), t.group_id)
+  )
+);
+```
+
+---
+
+#### 3.5.11 Policies - `member_stage_scores`
+
+**Quyền có:** SELECT, ALL (leader)
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view stage scores" ON public.member_stage_scores
+FOR SELECT USING (
+  (EXISTS (
+    SELECT 1 FROM stages s
+    WHERE s.id = member_stage_scores.stage_id AND is_group_member(auth.uid(), s.group_id)
+  )) OR is_admin(auth.uid())
+);
+
+-- Leader quản lý
+CREATE POLICY "Leaders can manage stage scores" ON public.member_stage_scores
+FOR ALL USING (
+  EXISTS (
+    SELECT 1 FROM stages s
+    WHERE s.id = member_stage_scores.stage_id AND is_group_leader(auth.uid(), s.group_id)
+  )
+);
+```
+
+---
+
+#### 3.5.12 Policies - `member_final_scores`
+
+**Quyền có:** SELECT, ALL (leader)
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view final scores" ON public.member_final_scores
+FOR SELECT USING (
+  is_group_member(auth.uid(), group_id) OR is_admin(auth.uid())
+);
+
+-- Leader quản lý
+CREATE POLICY "Leaders can manage final scores" ON public.member_final_scores
+FOR ALL USING (is_group_leader(auth.uid(), group_id));
+```
+
+---
+
+#### 3.5.13 Policies - `stage_weights`
+
+**Quyền có:** SELECT, ALL (leader)
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view stage weights" ON public.stage_weights
+FOR SELECT USING (
+  is_group_member(auth.uid(), group_id) OR is_admin(auth.uid())
+);
+
+-- Leader quản lý
+CREATE POLICY "Leaders can manage stage weights" ON public.stage_weights
+FOR ALL USING (is_group_leader(auth.uid(), group_id));
+```
+
+---
+
+#### 3.5.14 Policies - `score_appeals`
+
+**Quyền có:** SELECT, INSERT, UPDATE  
+**Quyền KHÔNG có:** DELETE
+
+```sql
+-- User xem khiếu nại bản thân, admin xem tất cả
+CREATE POLICY "Users can view own appeals" ON public.score_appeals
+FOR SELECT USING (
+  (user_id = auth.uid()) OR is_admin(auth.uid())
+);
+
+-- User tạo khiếu nại
+CREATE POLICY "Users can create appeals" ON public.score_appeals
+FOR INSERT WITH CHECK (user_id = auth.uid());
+
+-- Leader/admin xử lý khiếu nại
+CREATE POLICY "Leaders can update appeals" ON public.score_appeals
+FOR UPDATE USING (
+  is_admin(auth.uid()) OR (reviewer_id = auth.uid())
+);
+```
+
+---
+
+#### 3.5.15 Policies - `appeal_attachments`
+
+**Quyền có:** SELECT, ALL (owner)
+
+```sql
+-- User xem attachment của khiếu nại mình hoặc admin
+CREATE POLICY "Users can view appeal attachments" ON public.appeal_attachments
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM score_appeals a
+    WHERE a.id = appeal_attachments.appeal_id AND (a.user_id = auth.uid() OR is_admin(auth.uid()))
+  )
+);
+
+-- User quản lý attachment của khiếu nại mình
+CREATE POLICY "Users can manage own appeal attachments" ON public.appeal_attachments
+FOR ALL USING (
+  EXISTS (
+    SELECT 1 FROM score_appeals a
+    WHERE a.id = appeal_attachments.appeal_id AND a.user_id = auth.uid()
+  )
+);
+```
+
+---
+
+#### 3.5.16 Policies - `score_adjustment_history`
+
+**Quyền có:** SELECT, INSERT  
+**Quyền KHÔNG có:** UPDATE, DELETE
+
+```sql
+-- Admin hoặc user xem lịch sử điểm bản thân
+CREATE POLICY "Group members can view score history" ON public.score_adjustment_history
+FOR SELECT USING (
+  is_admin(auth.uid()) OR (user_id = auth.uid())
+);
+
+-- Admin hoặc leader ghi lịch sử
+CREATE POLICY "Leaders can insert score history" ON public.score_adjustment_history
+FOR INSERT WITH CHECK (
+  is_admin(auth.uid()) OR (adjusted_by = auth.uid())
+);
+```
+
+---
+
+#### 3.5.17 Policies - `task_notes`
+
+**Quyền có:** SELECT, INSERT, UPDATE, DELETE (tất cả authenticated)
+
+```sql
+CREATE POLICY "Anyone can view task notes" ON public.task_notes
+FOR SELECT USING (true);
+
+CREATE POLICY "Anyone can create task notes" ON public.task_notes
+FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Anyone can update task notes" ON public.task_notes
+FOR UPDATE USING (true);
+
+CREATE POLICY "Anyone can delete task notes" ON public.task_notes
+FOR DELETE USING (true);
+```
+
+> **Lưu ý:** Các policy này cho phép tất cả authenticated users. RLS chỉ chặn anonymous. Quyền truy cập thực tế được kiểm soát bởi logic frontend (chỉ member nhóm mới thấy task → mới thấy notes).
+
+---
+
+#### 3.5.18 Policies - `task_note_attachments`
+
+**Quyền có:** SELECT, INSERT, DELETE, ALL (tất cả authenticated)
+
+```sql
+CREATE POLICY "Anyone can view note attachments" ON public.task_note_attachments
+FOR SELECT USING (true);
+
+CREATE POLICY "Anyone can insert note attachments" ON public.task_note_attachments
+FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Anyone can delete note attachments" ON public.task_note_attachments
+FOR DELETE USING (true);
+
+CREATE POLICY "Anyone can manage note attachments" ON public.task_note_attachments
+FOR ALL USING (true);
+```
+
+---
+
+#### 3.5.19 Policies - `task_comments`
+
+**Quyền có:** SELECT, INSERT, UPDATE, DELETE
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view comments" ON public.task_comments
+FOR SELECT USING (
+  (EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.id = task_comments.task_id AND is_group_member(auth.uid(), t.group_id)
+  )) OR is_admin(auth.uid())
+);
+
+-- Member nhóm viết comment
+CREATE POLICY "Group members can insert comments" ON public.task_comments
+FOR INSERT WITH CHECK (
+  (EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.id = task_comments.task_id AND is_group_member(auth.uid(), t.group_id)
+  )) AND (user_id = auth.uid())
+);
+
+-- User sửa comment bản thân
+CREATE POLICY "Users can update own comments" ON public.task_comments
+FOR UPDATE USING (user_id = auth.uid());
+
+-- User xóa comment bản thân hoặc leader xóa
+CREATE POLICY "Users and leaders can delete comments" ON public.task_comments
+FOR DELETE USING (
+  (user_id = auth.uid()) OR (EXISTS (
+    SELECT 1 FROM tasks t
+    WHERE t.id = task_comments.task_id AND is_group_leader(auth.uid(), t.group_id)
+  ))
+);
+```
+
+---
+
+#### 3.5.20 Policies - `project_messages`
+
+**Quyền có:** SELECT, INSERT, UPDATE, DELETE
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view messages" ON public.project_messages
+FOR SELECT USING (
+  is_group_member(auth.uid(), group_id) OR is_admin(auth.uid())
+);
+
+-- Member nhóm gửi tin nhắn (chỉ với user_id = auth.uid())
+CREATE POLICY "Group members can insert messages" ON public.project_messages
+FOR INSERT WITH CHECK (
+  is_group_member(auth.uid(), group_id) AND (user_id = auth.uid())
+);
+
+-- User sửa tin nhắn bản thân
+CREATE POLICY "Users can update own messages" ON public.project_messages
+FOR UPDATE USING (user_id = auth.uid());
+
+-- User xóa tin nhắn bản thân hoặc leader xóa
+CREATE POLICY "Users can delete own messages" ON public.project_messages
+FOR DELETE USING (
+  (user_id = auth.uid()) OR is_group_leader(auth.uid(), group_id)
+);
+```
+
+---
+
+#### 3.5.21 Policies - `message_mentions`
+
+**Quyền có:** SELECT, INSERT, UPDATE  
+**Quyền KHÔNG có:** DELETE
+
+```sql
+-- User xem mention bản thân, hoặc admin
+CREATE POLICY "Users can view own mentions" ON public.message_mentions
+FOR SELECT USING (
+  (mentioned_user_id = auth.uid()) OR (mentioned_by = auth.uid()) OR is_admin(auth.uid())
+);
+
+-- User tạo mention
+CREATE POLICY "Users can insert mentions" ON public.message_mentions
+FOR INSERT WITH CHECK (mentioned_by = auth.uid());
+
+-- User cập nhật mention bản thân (đánh dấu đã đọc)
+CREATE POLICY "Users can update own mentions" ON public.message_mentions
+FOR UPDATE USING (mentioned_user_id = auth.uid());
+```
+
+---
+
+#### 3.5.22 Policies - `notifications`
+
+**Quyền có:** SELECT, INSERT, UPDATE, DELETE
+
+```sql
+-- User xem thông báo bản thân
+CREATE POLICY "Users can view own notifications" ON public.notifications
+FOR SELECT USING (user_id = auth.uid());
+
+-- Hệ thống tạo thông báo (cho mọi authenticated user)
+CREATE POLICY "System can insert notifications" ON public.notifications
+FOR INSERT WITH CHECK (true);
+
+-- User cập nhật thông báo bản thân (đánh dấu đã đọc)
+CREATE POLICY "Users can update own notifications" ON public.notifications
+FOR UPDATE USING (user_id = auth.uid());
+
+-- User xóa thông báo bản thân
+CREATE POLICY "Users can delete own notifications" ON public.notifications
+FOR DELETE USING (user_id = auth.uid());
+```
+
+---
+
+#### 3.5.23 Policies - `activity_logs`
+
+**Quyền có:** SELECT, INSERT, DELETE  
+**Quyền KHÔNG có:** UPDATE
+
+```sql
+-- Leader/admin xem nhật ký
+CREATE POLICY "Leaders and admins can view activity logs" ON public.activity_logs
+FOR SELECT USING (
+  is_admin(auth.uid()) OR has_role(auth.uid(), 'leader'::app_role)
+);
+
+-- Public xem nhật ký nếu nhóm public + show_activity_public
+CREATE POLICY "Public can view activity logs of public groups" ON public.activity_logs
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM groups g
+    WHERE g.id = activity_logs.group_id AND g.is_public = true AND g.show_activity_public = true
+  )
+);
+
+-- Leader/admin hoặc user bản thân ghi nhật ký
+CREATE POLICY "Leaders and admins can insert activity logs" ON public.activity_logs
+FOR INSERT WITH CHECK (
+  is_admin(auth.uid()) OR has_role(auth.uid(), 'leader'::app_role) OR (user_id = auth.uid())
+);
+
+-- Leader/admin xóa nhật ký
+CREATE POLICY "Leaders and admins can delete activity logs" ON public.activity_logs
+FOR DELETE USING (
+  is_admin(auth.uid()) OR has_role(auth.uid(), 'leader'::app_role)
+);
+```
+
+---
+
+#### 3.5.24 Policies - `project_resources`
+
+**Quyền có:** SELECT, INSERT, UPDATE, DELETE
+
+```sql
+-- Member nhóm hoặc admin xem
+CREATE POLICY "Group members can view resources" ON public.project_resources
+FOR SELECT USING (
+  is_group_member(auth.uid(), group_id) OR is_admin(auth.uid())
+);
+
+-- Public xem tài liệu nếu nhóm public + show_resources_public
+CREATE POLICY "Public can view resources of public groups" ON public.project_resources
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM groups g
+    WHERE g.id = project_resources.group_id AND g.is_public = true AND g.show_resources_public = true
+  )
+);
+
+-- Leader upload tài liệu
+CREATE POLICY "Leaders can insert resources" ON public.project_resources
+FOR INSERT WITH CHECK (
+  is_group_leader(auth.uid(), group_id) AND (uploaded_by = auth.uid())
+);
+
+-- Leader sửa tài liệu
+CREATE POLICY "Leaders can update resources" ON public.project_resources
+FOR UPDATE USING (is_group_leader(auth.uid(), group_id));
+
+-- Leader xóa tài liệu
+CREATE POLICY "Leaders can delete resources" ON public.project_resources
+FOR DELETE USING (is_group_leader(auth.uid(), group_id));
+```
+
+---
+
+#### 3.5.25 Policies - `resource_folders`
+
+**Quyền có:** SELECT, INSERT, UPDATE, DELETE
+
+```sql
+-- Member nhóm xem thư mục
+CREATE POLICY "Group members can view folders" ON public.resource_folders
+FOR SELECT USING (is_group_member(auth.uid(), group_id));
+
+-- Public xem thư mục nếu nhóm public + show_resources_public
+CREATE POLICY "Public can view folders of public groups" ON public.resource_folders
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM groups g
+    WHERE g.id = resource_folders.group_id AND g.is_public = true AND g.show_resources_public = true
+  )
+);
+
+-- Leader tạo thư mục
+CREATE POLICY "Group leaders can create folders" ON public.resource_folders
+FOR INSERT WITH CHECK (is_group_leader(auth.uid(), group_id));
+
+-- Leader sửa thư mục
+CREATE POLICY "Group leaders can update folders" ON public.resource_folders
+FOR UPDATE USING (is_group_leader(auth.uid(), group_id));
+
+-- Leader xóa thư mục
+CREATE POLICY "Group leaders can delete folders" ON public.resource_folders
+FOR DELETE USING (is_group_leader(auth.uid(), group_id));
+```
+
+---
+
+#### 3.5.26 Policies - `pending_approvals`
+
+**Quyền có:** SELECT, INSERT, UPDATE  
+**Quyền KHÔNG có:** DELETE
+
+```sql
+-- User xem yêu cầu bản thân, leader nhóm, hoặc admin
+CREATE POLICY "Users can view own approval requests" ON public.pending_approvals
+FOR SELECT USING (
+  (user_id = auth.uid()) OR is_group_leader(auth.uid(), group_id) OR is_admin(auth.uid())
+);
+
+-- User tạo yêu cầu
+CREATE POLICY "Users can create approval requests" ON public.pending_approvals
+FOR INSERT WITH CHECK (user_id = auth.uid());
+
+-- Leader/admin xử lý yêu cầu
+CREATE POLICY "Leaders can process approval requests" ON public.pending_approvals
+FOR UPDATE USING (
+  is_group_leader(auth.uid(), group_id) OR is_admin(auth.uid())
+);
+```
+
+---
+
+#### 3.5.27 Policies - `feedbacks`
+
+**Quyền có:** SELECT, INSERT, UPDATE  
+**Quyền KHÔNG có:** DELETE
+
+```sql
+-- User xem feedback bản thân, admin xem tất cả
+CREATE POLICY "Users can view own feedbacks" ON public.feedbacks
+FOR SELECT USING (
+  (user_id = auth.uid()) OR is_admin(auth.uid())
+);
+
+-- User tạo feedback
+CREATE POLICY "Users can create feedbacks" ON public.feedbacks
+FOR INSERT WITH CHECK (user_id = auth.uid());
+
+-- User sửa feedback bản thân, admin sửa tất cả
+CREATE POLICY "Users can update own feedbacks" ON public.feedbacks
+FOR UPDATE USING (
+  (user_id = auth.uid()) OR is_admin(auth.uid())
+);
+```
+
+---
+
+#### 3.5.28 Policies - `feedback_comments`
+
+**Quyền có:** SELECT, INSERT  
+**Quyền KHÔNG có:** UPDATE, DELETE
+
+```sql
+-- Xem comment nếu thuộc feedback bản thân hoặc admin
+CREATE POLICY "Users can view feedback comments" ON public.feedback_comments
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM feedbacks f
+    WHERE f.id = feedback_comments.feedback_id AND (f.user_id = auth.uid() OR is_admin(auth.uid()))
+  )
+);
+
+-- Gửi comment vào feedback bản thân hoặc admin
+CREATE POLICY "Users can insert feedback comments" ON public.feedback_comments
+FOR INSERT WITH CHECK (
+  (EXISTS (
+    SELECT 1 FROM feedbacks f
+    WHERE f.id = feedback_comments.feedback_id AND (f.user_id = auth.uid() OR is_admin(auth.uid()))
+  )) AND (user_id = auth.uid())
+);
+```
+
+---
+
+#### 3.5.29 Policies - `system_error_logs`
+
+**Quyền có:** SELECT (admin), INSERT (tất cả), DELETE (admin)  
+**Quyền KHÔNG có:** UPDATE
+
+```sql
+-- Admin xem log lỗi
+CREATE POLICY "Admins can read error logs" ON public.system_error_logs
+FOR SELECT USING (is_admin(auth.uid()));
+
+-- Tất cả user (kể cả anonymous) ghi log lỗi
+CREATE POLICY "Anon can insert error logs" ON public.system_error_logs
+FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can insert error logs" ON public.system_error_logs
+FOR INSERT WITH CHECK (true);
+
+-- Admin xóa log lỗi
+CREATE POLICY "Admins can delete error logs" ON public.system_error_logs
+FOR DELETE USING (is_admin(auth.uid()));
+```
+
+---
+
+#### 3.5.30 BẢNG TỔNG HỢP QUYỀN RLS
+
+| # | Bảng | SELECT | INSERT | UPDATE | DELETE |
+|---|------|--------|--------|--------|--------|
+| 1 | profiles | approved/self/admin | self | self/admin | ❌ |
+| 2 | user_roles | self/admin | admin | admin | admin |
+| 3 | groups | member/admin/public | leader/admin | leader | leader |
+| 4 | group_members | member/admin/public | leader | leader | leader |
+| 5 | stages | member/admin/public | leader | leader | leader |
+| 6 | tasks | member/admin/public | leader | leader/assignee | leader |
+| 7 | task_assignments | member/admin/public | leader | leader | leader |
+| 8 | submission_history | member/admin | assignee/leader/admin | ❌ | ❌ |
+| 9 | task_scores | member/admin | leader | leader | leader |
+| 10 | member_stage_scores | member/admin | leader | leader | leader |
+| 11 | member_final_scores | member/admin | leader | leader | leader |
+| 12 | stage_weights | member/admin | leader | leader | leader |
+| 13 | score_appeals | self/admin | self | leader/admin | ❌ |
+| 14 | appeal_attachments | self/admin | self | self | self |
+| 15 | score_adjustment_history | self/admin | leader/admin | ❌ | ❌ |
+| 16 | task_notes | all | all | all | all |
+| 17 | task_note_attachments | all | all | all | all |
+| 18 | task_comments | member/admin | member (self) | self | self/leader |
+| 19 | project_messages | member/admin | member (self) | self | self/leader |
+| 20 | message_mentions | self/admin | self | self | ❌ |
+| 21 | notifications | self | all | self | self |
+| 22 | activity_logs | leader/admin/public | leader/admin/self | ❌ | leader/admin |
+| 23 | project_resources | member/admin/public | leader | leader | leader |
+| 24 | resource_folders | member/public | leader | leader | leader |
+| 25 | pending_approvals | self/leader/admin | self | leader/admin | ❌ |
+| 26 | feedbacks | self/admin | self | self/admin | ❌ |
+| 27 | feedback_comments | self/admin | self/admin | ❌ | ❌ |
+| 28 | system_error_logs | admin | all | ❌ | admin |
 
 ---
 
