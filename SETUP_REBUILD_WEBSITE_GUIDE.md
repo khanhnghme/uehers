@@ -1,8 +1,8 @@
 # 🚀 HƯỚNG DẪN SETUP VÀ TÁI TẠO WEBSITE TEAMWORKS UEH
 # COMPLETE REBUILD GUIDE - VERSION 3.0
 
-> **Phiên bản:** 3.1 (STORAGE DETAILED)  
-> **Cập nhật lần cuối:** 04/02/2026  
+> **Phiên bản:** 4.0 (UNDO DELETE + SYSTEM UPDATE)  
+> **Cập nhật lần cuối:** 02/03/2026  
 > **Tác giả:** Nguyễn Hoàng Khánh (khanhngh.ueh@gmail.com)  
 > **Đơn vị:** Trường Đại học Kinh tế TP. Hồ Chí Minh (UEH)  
 > **Backend:** Supabase (PostgreSQL + Auth + Storage + Edge Functions)
@@ -15,7 +15,7 @@
 2. [Công nghệ & Phiên bản](#2-công-nghệ--phiên-bản)
 3. [Supabase - Cấu hình chi tiết](#3-supabase---cấu-hình-chi-tiết)
    - 3.1 Tạo Project
-   - 3.2 Database Schema (27 bảng)
+   - 3.2 Database Schema (28 bảng)
    - 3.3 Database Functions
    - 3.4 Database Triggers
    - 3.5 Row Level Security (RLS) - CHI TIẾT TẤT CẢ POLICIES
@@ -27,13 +27,14 @@
 7. [Cấu trúc thư mục Source Code](#7-cấu-trúc-thư-mục-source-code)
 8. [Components - Danh sách đầy đủ](#8-components---danh-sách-đầy-đủ)
 9. [Pages & Routing](#9-pages--routing)
-10. [Hướng dẫn Setup Step-by-Step](#10-hướng-dẫn-setup-step-by-step)
-11. [Tạo tài khoản Admin đầu tiên](#11-tạo-tài-khoản-admin-đầu-tiên)
-12. [Checklist sau khi Setup](#12-checklist-sau-khi-setup)
-13. [Những lưu ý quan trọng](#13-những-lưu-ý-quan-trọng)
-14. [Troubleshooting](#14-troubleshooting)
-15. [Backup & Restore](#15-backup--restore)
-16. [Changelog](#16-changelog)
+10. [Quy tắc hệ thống bắt buộc](#10-quy-tắc-hệ-thống-bắt-buộc)
+11. [Hướng dẫn Setup Step-by-Step](#11-hướng-dẫn-setup-step-by-step)
+12. [Tạo tài khoản Admin đầu tiên](#12-tạo-tài-khoản-admin-đầu-tiên)
+13. [Checklist sau khi Setup](#13-checklist-sau-khi-setup)
+14. [Những lưu ý quan trọng](#14-những-lưu-ý-quan-trọng)
+15. [Troubleshooting](#15-troubleshooting)
+16. [Backup & Restore](#16-backup--restore)
+17. [Changelog](#17-changelog)
 
 ---
 
@@ -72,6 +73,10 @@
 | 15 | **Xuất báo cáo** | PDF/Excel: nhật ký, bảng điểm | `ProjectEvidenceExport.tsx` |
 | 16 | **Chia sẻ công khai** | Public link, tùy chọn hiển thị | `ShareSettingsCard.tsx`, `PublicProjectView.tsx` |
 | 17 | **Quản lý Admin** | Quản lý user, backup/restore | `AdminUsers.tsx`, `AdminBackup.tsx` |
+| 18 | **Tạm đình chỉ** | Suspend/unsuspend thành viên | `SuspendMemberDialog.tsx`, `SuspendedScreen.tsx` |
+| 19 | **Import Excel** | Nhập danh sách thành viên từ Excel | `ExcelMemberImport.tsx` |
+| 20 | **Error Logging** | Ghi nhận lỗi hệ thống tự động | `SystemErrorLogs.tsx`, `errorLogger.ts` |
+| 21 | **Xem trước file** | Preview file trực tiếp trong app | `FilePreview.tsx` |
 
 ### 1.3 Đối tượng sử dụng - Chi tiết quyền
 
@@ -446,7 +451,7 @@ service_role key:   eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... (⚠️ BÍ MẬT!)
 
 ---
 
-### 3.2 DATABASE SCHEMA - ĐẦY ĐỦ 27 BẢNG
+### 3.2 DATABASE SCHEMA - ĐẦY ĐỦ 28 BẢNG
 
 #### 3.2.0 TẠO ENUM TYPES (CHẠY ĐẦU TIÊN!)
 
@@ -485,6 +490,11 @@ CREATE TABLE public.profiles (
   bio TEXT,
   is_approved BOOLEAN NOT NULL DEFAULT false,
   must_change_password BOOLEAN NOT NULL DEFAULT false,
+  -- Suspension fields
+  suspended_until TIMESTAMPTZ,
+  suspension_reason TEXT,
+  suspended_at TIMESTAMPTZ,
+  suspended_by UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -516,6 +526,10 @@ COMMENT ON COLUMN public.profiles.must_change_password IS 'Force password change
 | bio | TEXT | ✅ | NULL | Giới thiệu bản thân | `Sinh viên năm 3...` |
 | is_approved | BOOLEAN | ❌ | false | Admin đã duyệt | true/false |
 | must_change_password | BOOLEAN | ❌ | false | Buộc đổi mật khẩu | true/false |
+| suspended_until | TIMESTAMPTZ | ✅ | NULL | Thời hạn đình chỉ | `2024-04-01T00:00:00Z` |
+| suspension_reason | TEXT | ✅ | NULL | Lý do đình chỉ | `Vi phạm nội quy` |
+| suspended_at | TIMESTAMPTZ | ✅ | NULL | Thời điểm bị đình chỉ | `2024-03-15T10:00:00Z` |
+| suspended_by | UUID | ✅ | NULL | Người thực hiện đình chỉ | UUID |
 | created_at | TIMESTAMPTZ | ❌ | now() | Thời điểm tạo | `2024-01-15T10:30:00Z` |
 | updated_at | TIMESTAMPTZ | ❌ | now() | Thời điểm cập nhật | `2024-01-20T14:45:00Z` |
 
@@ -576,6 +590,7 @@ CREATE TABLE public.groups (
   show_members_public BOOLEAN DEFAULT true,
   show_activity_public BOOLEAN DEFAULT true,
   show_resources_public BOOLEAN DEFAULT true,
+  activity_logging_enabled BOOLEAN DEFAULT true,
   share_token TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -599,6 +614,7 @@ CREATE INDEX idx_groups_created_by ON public.groups(created_by);
 | leader_id | ID của leader chính | UUID |
 | is_public | Cho phép xem công khai | true/false |
 | show_*_public | Tùy chọn hiển thị khi public | true/false |
+| activity_logging_enabled | Bật/tắt ghi nhật ký | true/false |
 | share_token | Token để tạo share link | `abc123xyz` |
 
 ---
@@ -1199,6 +1215,43 @@ CREATE TABLE public.feedback_comments (
 
 CREATE INDEX idx_feedback_comments ON public.feedback_comments(feedback_id);
 ```
+
+---
+
+#### 3.2.28 Bảng `system_error_logs`
+
+**Mục đích:** Ghi nhận lỗi hệ thống tự động từ frontend để admin theo dõi
+
+```sql
+CREATE TABLE public.system_error_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  error_type TEXT NOT NULL DEFAULT 'runtime',
+  error_message TEXT NOT NULL,
+  error_stack TEXT,
+  component TEXT,
+  url TEXT,
+  user_id UUID,
+  user_agent TEXT,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  occurrence_count INTEGER NOT NULL DEFAULT 1,
+  last_occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_error_logs_type ON public.system_error_logs(error_type);
+CREATE INDEX idx_error_logs_time ON public.system_error_logs(created_at DESC);
+CREATE INDEX idx_error_logs_user ON public.system_error_logs(user_id);
+```
+
+| Column | Mô tả | Ví dụ |
+|--------|-------|-------|
+| error_type | Loại lỗi | `runtime`, `network`, `unhandled` |
+| error_message | Thông điệp lỗi | `Cannot read property 'id'` |
+| error_stack | Stack trace | `Error at Component.tsx:42` |
+| component | Component gây lỗi | `TaskListView` |
+| url | URL khi xảy ra lỗi | `/p/my-project` |
+| occurrence_count | Số lần xảy ra | 5 |
+| last_occurred_at | Lần cuối xảy ra | `2024-03-15T10:00:00Z` |
 
 ---
 
@@ -2393,6 +2446,7 @@ teamworks-ueh/
 │   │
 │   ├── contexts/
 │   │   ├── AuthContext.tsx
+│   │   ├── FilePreviewContext.tsx
 │   │   └── NavigationContext.tsx
 │   │
 │   ├── hooks/
@@ -2414,6 +2468,8 @@ teamworks-ueh/
 │   │   ├── excelExport.ts
 │   │   ├── activityLogPdf.ts
 │   │   ├── projectEvidencePdf.ts
+│   │   ├── deleteWithUndo.ts
+│   │   ├── errorLogger.ts
 │   │   └── uehLogoBase64.ts
 │   │
 │   ├── pages/
@@ -2548,6 +2604,7 @@ teamworks-ueh/
 | GroupInfoCard.tsx | Thông tin nhóm |
 | KanbanBoard.tsx | Bảng Kanban |
 | MemberAuthForm.tsx | Form đăng nhập member |
+| MemberDetailDialog.tsx | Chi tiết thành viên |
 | MemberManagementCard.tsx | Quản lý thành viên |
 | MultiFileUploadSubmission.tsx | Upload nhiều file |
 | NavLink.tsx | Navigation link |
@@ -2559,11 +2616,15 @@ teamworks-ueh/
 | ProjectResources.tsx | Tài liệu dự án |
 | ResourceLinkRenderer.tsx | Render link tài liệu |
 | ResourceTagTextarea.tsx | Tag tài liệu |
+| ResourceUploadDialog.tsx | Dialog upload tài liệu |
 | ShareSettingsCard.tsx | Cài đặt chia sẻ |
 | StageEditDialog.tsx | Sửa giai đoạn |
 | StageManagement.tsx | Quản lý giai đoạn |
 | SubmissionButton.tsx | Nút nộp bài |
 | SubmissionHistoryPopup.tsx | Lịch sử nộp bài |
+| SuspendMemberDialog.tsx | Dialog đình chỉ thành viên |
+| SuspendedScreen.tsx | Màn hình bị đình chỉ |
+| SystemErrorLogs.tsx | Xem log lỗi hệ thống |
 | TaskCard.tsx | Card task |
 | TaskEditDialog.tsx | Sửa task |
 | TaskFilters.tsx | Lọc task |
@@ -2574,6 +2635,7 @@ teamworks-ueh/
 | UserAvatar.tsx | Avatar user |
 | UserChangePasswordDialog.tsx | Đổi password |
 | UserPresenceIndicator.tsx | Trạng thái online |
+| ExcelMemberImport.tsx | Import thành viên từ Excel |
 
 ---
 
@@ -2589,24 +2651,82 @@ teamworks-ueh/
 | `/groups` | Groups.tsx | ✅ | Danh sách nhóm |
 | `/p/:projectSlug` | GroupDetail.tsx | ✅ | Chi tiết dự án |
 | `/p/:projectSlug/t/:taskSlug` | GroupDetail.tsx | ✅ | Chi tiết task |
+| `/p/:projectSlug/t/:taskSlug/f/:fileIndex` | FilePreview.tsx | ✅ | Xem file trong task |
 | `/groups/:groupId` | GroupDetail.tsx | ✅ | Legacy URL |
 | `/groups/:groupId/tasks/:taskId` | GroupDetail.tsx | ✅ | Legacy URL |
 | `/s/:shareToken` | PublicProjectView.tsx | ❌ | Xem công khai |
+| `/s/:shareToken/t/:taskSlug/f/:fileIndex` | FilePreview.tsx | ❌ | Xem file public |
 | `/personal-info` | PersonalInfo.tsx | ✅ | Thông tin cá nhân |
 | `/communication` | Communication.tsx | ✅ | Trò chuyện |
 | `/feedback` | Feedback.tsx | ✅ | Gửi phản hồi |
-| `/file/:bucket/:path` | FilePreview.tsx | ❌ | Xem file |
+| `/file-preview` | FilePreview.tsx | ❌ | Xem file (legacy) |
 | `/members` | MemberManagement.tsx | ✅ | Quản lý thành viên |
 | `/admin/activity` | AdminActivity.tsx | ✅ Admin | Nhật ký hệ thống |
 | `/admin/backup` | AdminBackup.tsx | ✅ Admin | Backup/Restore |
-| `/admin/users` | AdminUsers.tsx | ✅ Admin | Quản lý users |
+| `/admin/users` | AdminUsers.tsx | ✅ Admin | Quản lý users (hidden) |
 | `*` | NotFound.tsx | ❌ | 404 |
 
 ---
 
-## 10. HƯỚNG DẪN SETUP STEP-BY-STEP
+## 10. QUY TẮC HỆ THỐNG BẮT BUỘC
 
-### 10.1 Yêu cầu hệ thống
+### 10.1 🔴 Cơ chế hoàn tác xóa (Undo Delete)
+
+**Áp dụng cho TOÀN BỘ hệ thống, bao gồm các tính năng hiện tại và tương lai.**
+
+**Nguyên tắc:**
+- Mọi thao tác xóa dữ liệu đều **PHẢI** sử dụng `deleteWithUndo()` từ `src/lib/deleteWithUndo.ts`
+- Hiển thị toast "Đã xóa" kèm nút **Hoàn tác** với đếm ngược **5 giây**
+- Trong 5 giây, người dùng nhấn Hoàn tác → khôi phục ngay lập tức
+- Sau 5 giây → xóa vĩnh viễn
+- **KHÔNG BAO GIỜ** xóa trực tiếp mà không qua cơ chế undo
+
+**Cách sử dụng:**
+```ts
+import { deleteWithUndo } from '@/lib/deleteWithUndo';
+
+deleteWithUndo({
+  description: 'Đã xóa task "Tên task"',
+  onDelete: async () => {
+    await supabase.from('tasks').delete().eq('id', taskId);
+  },
+  onUndo: () => {
+    // Khôi phục lại UI state nếu đã ẩn item trước đó
+    onRefresh();
+  },
+});
+```
+
+**Đã áp dụng tại (14 files):**
+
+| File | Thao tác xóa |
+|------|---------------|
+| `GroupDetail.tsx` | Xóa project |
+| `StageManagement.tsx` | Xóa giai đoạn |
+| `KanbanBoard.tsx` | Xóa task (Kanban) |
+| `TaskListView.tsx` | Xóa task (ListView) |
+| `Communication.tsx` | Xóa tin nhắn |
+| `ProjectResources.tsx` | Xóa tài liệu + thư mục |
+| `MemberManagementCard.tsx` | Xóa thành viên khỏi nhóm |
+| `Feedback.tsx` | Xóa feedback |
+| `AdminActivity.tsx` | Xóa nhật ký hệ thống |
+| `NotificationBell.tsx` | Xóa thông báo |
+| `TaskNotes.tsx` | Xóa ghi chú + file đính kèm |
+| `SystemErrorLogs.tsx` | Xóa log lỗi |
+| `AdminUsers.tsx` | Xóa user |
+| `MemberManagement.tsx` | Xóa thành viên |
+
+### 10.2 Ghi nhận lỗi hệ thống (Error Logging)
+
+- Sử dụng `src/lib/errorLogger.ts` để ghi nhận lỗi tự động vào bảng `system_error_logs`
+- Admin có thể xem lỗi tại component `SystemErrorLogs.tsx`
+- Tự động đếm số lần xảy ra lỗi giống nhau (`occurrence_count`)
+
+---
+
+## 11. HƯỚNG DẪN SETUP STEP-BY-STEP
+
+### 11.1 Yêu cầu hệ thống
 
 - **Node.js:** >= 18.x (khuyến nghị 20.x)
 - **Package Manager:** npm / yarn / pnpm / bun
@@ -2614,7 +2734,7 @@ teamworks-ueh/
 - **Browser:** Chrome / Firefox / Edge (latest)
 - **IDE:** VS Code (khuyến nghị)
 
-### 10.2 Setup từ đầu
+### 11.2 Setup từ đầu
 
 ```bash
 # 1. Clone repo
@@ -2638,7 +2758,7 @@ npm run dev
 # http://localhost:5173
 ```
 
-### 10.3 Setup Supabase từ đầu
+### 11.3 Setup Supabase từ đầu
 
 1. **Tạo project mới** trên supabase.com
 2. **Chạy SQL theo thứ tự:**
@@ -2657,7 +2777,7 @@ npm run dev
 
 ---
 
-## 11. TẠO TÀI KHOẢN ADMIN
+## 12. TẠO TÀI KHOẢN ADMIN
 
 ### Cách 1: Edge Function (Recommended)
 
@@ -2685,11 +2805,11 @@ VALUES ('your-user-id', 'admin');
 
 ---
 
-## 12. CHECKLIST SAU KHI SETUP
+## 13. CHECKLIST SAU KHI SETUP
 
 ```
 ✅ Database
-   [ ] Tất cả 27 bảng đã được tạo
+   [ ] Tất cả 28 bảng đã được tạo
    [ ] Tất cả indexes đã được tạo
    [ ] Tất cả functions đã được tạo
    [ ] Tất cả triggers đã được tạo
@@ -2725,7 +2845,7 @@ VALUES ('your-user-id', 'admin');
 
 ---
 
-## 13. LƯU Ý QUAN TRỌNG
+## 14. LƯU Ý QUAN TRỌNG
 
 ### 13.1 Files KHÔNG ĐƯỢC chỉnh sửa
 
@@ -2747,7 +2867,7 @@ VALUES ('your-user-id', 'admin');
 
 ---
 
-## 14. TROUBLESHOOTING
+## 15. TROUBLESHOOTING
 
 | Lỗi | Nguyên nhân | Giải pháp |
 |-----|-------------|-----------|
@@ -2760,7 +2880,7 @@ VALUES ('your-user-id', 'admin');
 
 ---
 
-## 15. BACKUP & RESTORE
+## 16. BACKUP & RESTORE
 
 ### Backup
 
@@ -2778,18 +2898,19 @@ VALUES ('your-user-id', 'admin');
 
 ---
 
-## 16. CHANGELOG
+## 17. CHANGELOG
 
-### 16.1 General Changelog
+### 17.1 General Changelog
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 4.0 | 02/03/2026 | **MAJOR UPDATE**: Thêm cơ chế Undo Delete toàn hệ thống (14 files), bảng `system_error_logs` (28 bảng), suspension fields cho profiles, components mới (ExcelMemberImport, MemberDetailDialog, ResourceUploadDialog, SuspendMemberDialog, SuspendedScreen, SystemErrorLogs), libs mới (deleteWithUndo, errorLogger), FilePreviewContext, cập nhật routes |
 | 3.1 | 04/02/2026 | **STORAGE UPDATE**: Chi tiết hóa toàn bộ phần Supabase Storage với đầy đủ bucket, naming convention, RLS policies, liên kết DB |
 | 3.0 | 04/02/2026 | Full detailed guide |
 | 2.0 | 04/02/2026 | Added Edge Functions, Design System |
 | 1.0 | 04/02/2026 | Initial version |
 
-### 16.2 Storage Changelog
+### 17.2 Storage Changelog
 
 > 📝 **BẮT BUỘC:** Mọi thay đổi về Storage phải ghi vào bảng này
 
