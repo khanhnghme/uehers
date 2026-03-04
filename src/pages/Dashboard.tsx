@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import UserAvatar from '@/components/UserAvatar';
 import DashboardProjectCard from '@/components/dashboard/DashboardProjectCard';
 import { supabase } from '@/integrations/supabase/client';
+import { useUserPresence } from '@/hooks/useUserPresence';
+import UserPresenceIndicator from '@/components/UserPresenceIndicator';
 import FirstTimeOnboarding from '@/components/FirstTimeOnboarding';
 import {
   FolderKanban,
@@ -21,6 +23,7 @@ export default function Dashboard() {
   const { user, profile, mustChangePassword, refreshProfile, isLeader, isAdmin } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { isConnected } = useUserPresence('system-global');
 
   useEffect(() => {
     if (user) {
@@ -101,12 +104,19 @@ export default function Dashboard() {
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
           <div className="relative flex items-center gap-6">
-            <UserAvatar
-              src={profile?.avatar_url}
-              name={profile?.full_name}
-              size="xl"
-              className="border-4 border-white/20 shadow-xl"
-            />
+            <div className="relative">
+              <UserAvatar
+                src={profile?.avatar_url}
+                name={profile?.full_name}
+                size="xl"
+                className="border-4 border-white/20 shadow-xl"
+              />
+              {isConnected && (
+                <div className="absolute -bottom-1 -right-1">
+                  <UserPresenceIndicator status="online" size="md" />
+                </div>
+              )}
+            </div>
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <Sparkles className="w-6 h-6 text-accent" />

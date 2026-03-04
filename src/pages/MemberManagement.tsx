@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { deleteWithUndo } from '@/lib/deleteWithUndo';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -58,11 +58,14 @@ import { exportMembersToExcel, getRoleDisplayName } from '@/lib/excelExport';
 import MemberDetailDialog from '@/components/MemberDetailDialog';
 import SuspendMemberDialog from '@/components/SuspendMemberDialog';
 import ExcelMemberImport, { type ParsedRow, type ExcelImportAction, type ImportValidation } from '@/components/ExcelMemberImport';
+import UserPresenceIndicator from '@/components/UserPresenceIndicator';
+import { useUserPresence } from '@/hooks/useUserPresence';
 
 export default function MemberManagement() {
   const navigate = useNavigate();
   const { user, isAdmin, isLoading: authLoading, profile: currentProfile } = useAuth();
   const { toast } = useToast();
+  const { getPresenceStatus, isConnected } = useUserPresence('system-global');
   
   const [members, setMembers] = useState<Profile[]>([]);
   const [pendingMembers, setPendingMembers] = useState<Profile[]>([]);
@@ -495,7 +498,14 @@ export default function MemberManagement() {
         {isSelectMode && canManage && (
           <Checkbox checked={isSelected} onCheckedChange={() => toggleSelect(member.id)} onClick={(e) => e.stopPropagation()} className="shrink-0" />
         )}
-        <UserAvatar src={member.avatar_url} name={member.full_name} size="lg" className="border-2 border-background" />
+        <div className="relative">
+          <UserAvatar src={member.avatar_url} name={member.full_name} size="lg" className="border-2 border-background" />
+          {isConnected && (
+            <div className="absolute -bottom-0.5 -right-0.5">
+              <UserPresenceIndicator status={getPresenceStatus(member.id)} size="sm" />
+            </div>
+          )}
+        </div>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
