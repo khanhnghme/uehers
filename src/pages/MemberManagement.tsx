@@ -715,8 +715,8 @@ export default function MemberManagement() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-0">
-        {/* Sub-navigation - on top */}
+      <div className="space-y-0 -mx-6 md:-mx-8 -mt-6">
+        {/* Sub-navigation - flush with main nav */}
         <MemberNavigation activeTab={activeSubTab} onTabChange={setActiveSubTab} counts={navCounts} />
 
         {/* Header - below navigation */}
