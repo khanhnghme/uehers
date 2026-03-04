@@ -501,7 +501,7 @@ export default function MemberManagement() {
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold truncate">{member.full_name}</p>
             {isAdminMember && (
-              <Badge className="bg-destructive/10 text-destructive text-xs gap-1"><Shield className="w-3 h-3" />Phó Admin</Badge>
+              <Badge className="bg-destructive/10 text-destructive text-xs gap-1"><Shield className="w-3 h-3" />Admin</Badge>
             )}
             {!isAdminMember && roles.includes('leader') && (
               <Badge className="bg-primary/10 text-primary text-xs gap-1"><Shield className="w-3 h-3" />Thành viên Nâng cao</Badge>
@@ -580,7 +580,7 @@ export default function MemberManagement() {
               <SelectItem value="all">Tất cả vai trò</SelectItem>
               <SelectItem value="member">Thành viên Thường</SelectItem>
               <SelectItem value="leader">Thành viên Nâng cao</SelectItem>
-              <SelectItem value="admin">Phó Admin</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>
           </Select>
         )}
@@ -716,7 +716,10 @@ export default function MemberManagement() {
   return (
     <DashboardLayout>
       <div className="space-y-0">
-        {/* Header */}
+        {/* Sub-navigation - on top */}
+        <MemberNavigation activeTab={activeSubTab} onTabChange={setActiveSubTab} counts={navCounts} />
+
+        {/* Header - below navigation */}
         <div className="px-4 md:px-8 py-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 max-w-[1600px] mx-auto">
             <div>
@@ -735,7 +738,7 @@ export default function MemberManagement() {
                     fullName: m.full_name,
                     studentId: m.student_id,
                     email: m.email,
-                    role: isMemberAdmin(m.id) ? 'Phó Admin' : (memberRoles[m.id]?.includes('leader') ? 'Thành viên Nâng cao' : 'Thành viên Thường')
+                    role: isMemberAdmin(m.id) ? 'Admin' : (memberRoles[m.id]?.includes('leader') ? 'Thành viên Nâng cao' : 'Thành viên Thường')
                   }));
                   exportMembersToExcel(exportData, 'danh-sach-thanh-vien-he-thong');
                 }}
@@ -802,11 +805,8 @@ export default function MemberManagement() {
           </div>
         </div>
 
-        {/* Sub-navigation */}
-        <MemberNavigation activeTab={activeSubTab} onTabChange={setActiveSubTab} counts={navCounts} />
-
         {/* Content */}
-        <div className="px-4 md:px-8 py-6">
+        <div className="px-4 md:px-8 pb-6">
           <div className="max-w-[1600px] mx-auto space-y-4">
             {/* Tab: All Members */}
             {activeSubTab === 'all' && (
