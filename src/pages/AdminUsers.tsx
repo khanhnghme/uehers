@@ -13,7 +13,8 @@ import UserAvatar from '@/components/UserAvatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import ProfileViewDialog from '@/components/ProfileViewDialog';
 import UserPresenceIndicator from '@/components/UserPresenceIndicator';
-import { useUserPresence, PresenceStatus } from '@/hooks/useUserPresence';
+import { useUserPresence } from '@/hooks/useUserPresence';
+import type { PresenceStatus } from '@/hooks/useUserPresence';
 
 import {
   Loader2,
@@ -58,81 +59,6 @@ interface PendingApprovalRow {
   groupName?: string;
 }
 
-// Global presence hook for admin page - tracks presence across multiple groups
-function useGlobalPresence(groupIds: string[]) {
-  const { user } = useAuth();
-  const [presenceMap, setPresenceMap] = useState<Map<string, PresenceStatus>>(new Map());
-  
-  useEffect(() => {
-    if (!user || groupIds.length === 0) return;
-    
-    const channels: ReturnType<typeof supabase.channel>[] = [];
-    const mergedPresence = new Map<string, PresenceStatus>();
-    
-    // Subscribe to presence for each group
-    groupIds.forEach((groupId) => {
-      const channelName = `presence:${groupId}`;
-      const channel = supabase.channel(channelName, {
-        config: { presence: { key: user.id } },
-      });
-      
-      channel
-        .on('presence', { event: 'sync' }, () => {
-          const state = channel.presenceState<{ status: PresenceStatus; userId: string }>();
-          Object.values(state).forEach((presences) => {
-            if (presences && presences.length > 0) {
-              const p = presences[presences.length - 1];
-              if (p.userId) {
-                // Only update if the new status is "better" (online > idle > offline)
-                const current = mergedPresence.get(p.userId);
-                if (!current || p.status === 'online' || (p.status === 'idle' && current === 'offline')) {
-                  mergedPresence.set(p.userId, p.status);
-                }
-              }
-            }
-          });
-          setPresenceMap(new Map(mergedPresence));
-        })
-        .on('presence', { event: 'join' }, ({ newPresences }) => {
-          if (newPresences?.length > 0) {
-            const p = newPresences[0];
-            if (p.userId) {
-              mergedPresence.set(p.userId, p.status || 'online');
-              setPresenceMap(new Map(mergedPresence));
-            }
-          }
-        })
-        .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-          if (leftPresences?.length > 0) {
-            const p = leftPresences[0];
-            if (p.userId) {
-              mergedPresence.set(p.userId, 'offline');
-              setPresenceMap(new Map(mergedPresence));
-            }
-          }
-        })
-        .subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            await channel.track({
-              status: 'online',
-              lastSeen: new Date().toISOString(),
-              userId: user.id,
-            });
-          }
-        });
-      
-      channels.push(channel);
-    });
-    
-    return () => {
-      channels.forEach((ch) => supabase.removeChannel(ch));
-    };
-  }, [user, groupIds.join(',')]);
-  
-  return {
-    getPresenceStatus: (userId: string): PresenceStatus => presenceMap.get(userId) || 'offline',
-  };
-}
 
 export default function AdminUsers() {
   const { user, isAdmin, isLeader } = useAuth();
@@ -151,12 +77,8 @@ export default function AdminUsers() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   
-  // Extract unique group IDs from members for presence tracking
-  const uniqueGroupIds = useMemo(() => {
-    return Array.from(new Set(members.map(m => m.groupId)));
-  }, [members]);
-  
-  const { getPresenceStatus } = useGlobalPresence(uniqueGroupIds);
+  // Use system-global presence channel
+  const { getPresenceStatus } = useUserPresence('system-global');
 
   const canAccess = isAdmin || isLeader;
 

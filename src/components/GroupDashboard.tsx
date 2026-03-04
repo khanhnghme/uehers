@@ -55,12 +55,9 @@ export default function GroupDashboard({ tasks, members, stages, groupId }: Grou
     return deadline >= now && deadline <= threeDays;
   });
 
-  // Count members by presence status - only count if presence is connected
+  // Count online members
   const onlineMembers = isConnected 
     ? members.filter(m => getPresenceStatus(m.user_id) === 'online').length 
-    : 0;
-  const idleMembers = isConnected 
-    ? members.filter(m => getPresenceStatus(m.user_id) === 'idle').length 
     : 0;
 
   const handleMemberClick = (member: GroupMember) => {
@@ -219,21 +216,11 @@ export default function GroupDashboard({ tasks, members, stages, groupId }: Grou
                 <Users className="w-5 h-5 text-primary" />
                 Thành viên ({members.length})
               </div>
-              {isConnected && (
-                <div className="flex items-center gap-3 text-sm font-normal">
-                  {onlineMembers > 0 && (
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                      <span className="text-muted-foreground">{onlineMembers} online</span>
-                    </span>
-                  )}
-                  {idleMembers > 0 && (
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-warning" />
-                      <span className="text-muted-foreground">{idleMembers} idle</span>
-                    </span>
-                  )}
-                </div>
+              {isConnected && onlineMembers > 0 && (
+                <span className="flex items-center gap-1.5 text-sm font-normal">
+                  <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  <span className="text-muted-foreground">{onlineMembers} online</span>
+                </span>
               )}
             </CardTitle>
           </CardHeader>

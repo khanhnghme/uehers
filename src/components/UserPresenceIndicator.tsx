@@ -9,21 +9,14 @@ interface UserPresenceIndicatorProps {
   className?: string;
 }
 
-const statusConfig: Record<PresenceStatus, { color: string; label: string; ringColor: string }> = {
+const statusConfig: Record<PresenceStatus, { color: string; label: string }> = {
   online: { 
     color: 'bg-green-500', 
-    label: 'Đang online',
-    ringColor: 'ring-green-500/30'
-  },
-  idle: { 
-    color: 'bg-yellow-500', 
-    label: 'Không hoạt động',
-    ringColor: 'ring-yellow-500/30'
+    label: 'Online',
   },
   offline: { 
     color: 'bg-gray-400', 
     label: 'Offline',
-    ringColor: 'ring-gray-400/30'
   },
 };
 
